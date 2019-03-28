@@ -58,6 +58,7 @@ module.exports = {
 		const testRoot = `${(options && options.dir) ? options.dir : process.cwd()}/screenshots` ;
 		const currentDir = `${testRoot}/current`;
 		const goldenDir = `${testRoot}/golden`;
+		const port = (options && options.port) ? options.port : 8081;
 		let polyserve;
 
 		before(async() => {
@@ -65,7 +66,7 @@ module.exports = {
 			if (!fs.existsSync(currentDir)) fs.mkdirSync(currentDir);
 			if (!fs.existsSync(goldenDir)) fs.mkdirSync(goldenDir);
 			polyserve = await startServer({
-				port: (options && options.port) ? options.port : 8081,
+				port: port,
 				npm: true,
 				moduleResolution: 'node'}
 			);
@@ -84,6 +85,8 @@ module.exports = {
 			compare: async(name) => {
 				compare(currentDir, goldenDir, name);
 			},
+
+			port: port,
 
 			puppeteer: {
 

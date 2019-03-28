@@ -53,7 +53,7 @@ visualDiff.run((ctx) => {
 
       beforeEach(async function() {
         await page.setViewport({width: 800, height: 800, deviceScaleFactor: 2});
-        await page.goto('http://127.0.0.1:8081/components/d2l-core-ui/test/button/button-subtle-fixture.html', {waitUntil: ['networkidle2', 'load']});
+        await page.goto(`http://127.0.0.1:${ctx.port}/components/d2l-core-ui/test/button/button-subtle-fixture.html`, {waitUntil: ['networkidle2', 'load']});
       });
 
       it('normal', async function() {
