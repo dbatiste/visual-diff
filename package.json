@@ -1,0 +1,27 @@
+{
+  "name": "visual-diff",
+  "version": "0.0.1",
+  "description": "Mocha util for running visual diffs",
+  "repository": "https://github.com/dbatiste/visual-diff.git",
+  "main": "visual-diff.js",
+  "scripts": {
+    "lint": "eslint . --ext .js,.html",
+    "test": "npm run lint"
+  },
+  "author": "Dave Batiste",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "babel-eslint": "latest",
+    "eslint": "latest",
+    "eslint-config-brightspace": "latest",
+    "eslint-plugin-html": "latest",
+    "eslint-plugin-lit": "latest"
+  },
+  "dependencies": {
+    "chai": "latest",
+    "mocha": "latest",
+    "pixelmatch": "latest",
+    "polyserve": "latest",
+    "puppeteer": "latest"
+  }
+}
