@@ -18,12 +18,15 @@ Given...
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
     <style>
+      body {
+        padding: 30px;
+      }
       body > div {
         margin: 20px;
       }
     </style>
   </head>
-  <body style="padding: 30px;" class="d2l-typography">
+  <body class="d2l-typography">
     <div><d2l-button-subtle id="normal" text="Subtle Button"></d2l-button-subtle></div>
   </body>
 </html>
