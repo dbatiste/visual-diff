@@ -18,12 +18,8 @@ Given...
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
     <style>
-      body {
-        padding: 30px;
-      }
-      body > div {
-        margin: 20px;
-      }
+      body { padding: 30px; }
+      body > div { margin: 20px; }
     </style>
   </head>
   <body class="d2l-typography">
