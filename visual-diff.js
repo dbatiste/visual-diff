@@ -1,15 +1,16 @@
-const { startServer } = require('polyserve');
-const fs = require('fs');
-const PNG = require('pngjs').PNG;
-const pixelmatch = require('pixelmatch');
+const chalk = require('chalk');
 const expect = require('chai').expect;
+const fs = require('fs');
+const pixelmatch = require('pixelmatch');
+const PNG = require('pngjs').PNG;
+const polyserve = require('polyserve');
 
 const compare = async(currentDir, goldenDir, name) => {
 
 	if (process.argv.includes('--golden')) {
 		fs.copyFileSync(getScreenshotPath(currentDir, name), getScreenshotPath(goldenDir, name));
 		// eslint-disable-next-line no-console
-		console.log('      golden updated');
+		console.log(`${chalk.hex('#DCDCAA')('      golden updated')}`);
 	}
 
 	expect(fs.existsSync(getScreenshotPath(goldenDir, name)), 'golden exists').equal(true);
@@ -59,21 +60,26 @@ module.exports = {
 		const currentDir = `${testRoot}/current`;
 		const goldenDir = `${testRoot}/golden`;
 		const port = (options && options.port) ? options.port : 8081;
-		let polyserve;
+		let server, serverInfo;
 
 		before(async() => {
 			if (!fs.existsSync(testRoot)) fs.mkdirSync(testRoot);
 			if (!fs.existsSync(currentDir)) fs.mkdirSync(currentDir);
 			if (!fs.existsSync(goldenDir)) fs.mkdirSync(goldenDir);
-			polyserve = await startServer({
+			const options = {
 				port: port,
 				npm: true,
-				moduleResolution: 'node'}
-			);
+				moduleResolution: 'node'
+			};
+			server = await polyserve.startServer(options);
+			const url = polyserve.getServerUrls(options, server).componentUrl;
+			serverInfo = Object.assign({
+				baseUrl: `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/,'')}`
+			}, url);
 		});
 
 		after(async() => {
-			await polyserve.close();
+			await server.close();
 		});
 
 		delegate({
@@ -86,7 +92,9 @@ module.exports = {
 				compare(currentDir, goldenDir, name);
 			},
 
-			port: port,
+			serverInfo: () => {
+				return serverInfo;
+			},
 
 			puppeteer: {
 

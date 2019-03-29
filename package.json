@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "chai": "latest",
+    "chalk": "latest",
     "mocha": "latest",
     "pixelmatch": "latest",
     "polyserve": "latest",
