@@ -101,6 +101,19 @@ module.exports = {
 				getRect: async(page, selector, margin) => {
 					margin = (margin !== undefined) ? margin : 10;
 					return page.$eval(selector, (elem, margin) => {
+						return {
+							x: elem.offsetLeft - margin,
+							y: elem.offsetTop - margin,
+							width: elem.offsetWidth + (margin * 2),
+							height: elem.offsetHeight + (margin * 2)
+						};
+					}, margin);
+				},
+
+				/*
+				getRect: async(page, selector, margin) => {
+					margin = (margin !== undefined) ? margin : 10;
+					return page.$eval(selector, (elem, margin) => {
 						const rect = elem.getBoundingClientRect();
 						return {
 							x: rect.left - margin,
@@ -110,6 +123,7 @@ module.exports = {
 						};
 					}, margin);
 				},
+				*/
 
 				screenshotAndCompare: async(page, name, options) => {
 					const info = Object.assign({path: getScreenshotPath(currentDir, name)}, options);
