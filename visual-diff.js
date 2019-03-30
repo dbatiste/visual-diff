@@ -110,21 +110,6 @@ module.exports = {
 					}, margin);
 				},
 
-				/*
-				getRect: async(page, selector, margin) => {
-					margin = (margin !== undefined) ? margin : 10;
-					return page.$eval(selector, (elem, margin) => {
-						const rect = elem.getBoundingClientRect();
-						return {
-							x: rect.left - margin,
-							y: rect.top - margin,
-							width: rect.width + (margin * 2),
-							height: rect.height + (margin * 2)
-						};
-					}, margin);
-				},
-				*/
-
 				screenshotAndCompare: async(page, name, options) => {
 					const info = Object.assign({path: getScreenshotPath(currentDir, name)}, options);
 					await page.screenshot(info);
