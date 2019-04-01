@@ -15,7 +15,7 @@ const compare = async(currentDir, goldenDir, name, uploadConfig) => {
 		console.log(`${chalk.hex('#DCDCAA')('      golden updated')}`);
 	}
 
-	if (upload) await uploadHandler.upload(getScreenshotPath(currentDir, name), uploadConfig);
+	if (uploadConfig) await uploadHandler.upload(getScreenshotPath(currentDir, name), uploadConfig);
 
 	expect(fs.existsSync(getScreenshotPath(goldenDir, name)), 'golden exists').equal(true);
 
