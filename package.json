@@ -18,6 +18,7 @@
     "eslint-plugin-lit": "latest"
   },
   "dependencies": {
+    "aws-sdk": "latest",
     "chai": "latest",
     "chalk": "latest",
     "mocha": "latest",
