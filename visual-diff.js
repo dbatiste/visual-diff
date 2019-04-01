@@ -4,6 +4,8 @@ const fs = require('fs');
 const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const polyserve = require('polyserve');
+const uploadHandler = require('./s3-upload.js');
+const helpers = require('./helpers.js');
 
 const compare = async(currentDir, goldenDir, name) => {
 
@@ -60,7 +62,10 @@ module.exports = {
 		const currentDir = `${testRoot}/current`;
 		const goldenDir = `${testRoot}/golden`;
 		const port = (options && options.port) ? options.port : 8081;
+		const uploadConfig = (options.upload ? Object.assign({}, options.upload) : null);
 		let server, serverInfo;
+
+		if (uploadConfig) uploadConfig.target = `${uploadConfig.target}/${options.name}/${helpers.getTimestamp('-', '.')}`;
 
 		before(async() => {
 			if (!fs.existsSync(testRoot)) fs.mkdirSync(testRoot);
@@ -113,6 +118,7 @@ module.exports = {
 				screenshotAndCompare: async(page, name, options) => {
 					const info = Object.assign({path: getScreenshotPath(currentDir, name)}, options);
 					await page.screenshot(info);
+					if (uploadConfig) await uploadHandler.upload(getScreenshotPath(currentDir, name), uploadConfig);
 					await compare(currentDir, goldenDir, name);
 				}
 
