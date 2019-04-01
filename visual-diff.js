@@ -7,13 +7,15 @@ const polyserve = require('polyserve');
 const uploadHandler = require('./s3-upload.js');
 const helpers = require('./helpers.js');
 
-const compare = async(currentDir, goldenDir, name) => {
+const compare = async(currentDir, goldenDir, name, uploadConfig) => {
 
 	if (process.argv.includes('--golden')) {
 		fs.copyFileSync(getScreenshotPath(currentDir, name), getScreenshotPath(goldenDir, name));
 		// eslint-disable-next-line no-console
 		console.log(`${chalk.hex('#DCDCAA')('      golden updated')}`);
 	}
+
+	if (upload) await uploadHandler.upload(getScreenshotPath(currentDir, name), uploadConfig);
 
 	expect(fs.existsSync(getScreenshotPath(goldenDir, name)), 'golden exists').equal(true);
 
@@ -32,6 +34,8 @@ const compare = async(currentDir, goldenDir, name) => {
 	if (numDiffPixels !== 0) {
 		diff.pack().pipe(fs.createWriteStream(getScreenshotPath(currentDir, `${name}-diff`)));
 	}
+
+	if (upload) await uploadHandler.upload(getScreenshotPath(currentDir, `${name}-diff`), uploadConfig);
 
 	expect(numDiffPixels, 'number of different pixels').equal(0);
 };
@@ -94,7 +98,7 @@ module.exports = {
 			},
 
 			compare: async(name) => {
-				compare(currentDir, goldenDir, name);
+				compare(currentDir, goldenDir, name, uploadConfig);
 			},
 
 			serverInfo: () => {
@@ -118,8 +122,7 @@ module.exports = {
 				screenshotAndCompare: async(page, name, options) => {
 					const info = Object.assign({path: getScreenshotPath(currentDir, name)}, options);
 					await page.screenshot(info);
-					if (uploadConfig) await uploadHandler.upload(getScreenshotPath(currentDir, name), uploadConfig);
-					await compare(currentDir, goldenDir, name);
+					await compare(currentDir, goldenDir, name, uploadConfig);
 				}
 
 			}
