@@ -1,4 +1,3 @@
-
 const AWS = require('aws-sdk');
 const chalk = require('chalk');
 const fs = require('fs');
@@ -8,7 +7,7 @@ const uploadHelper = {
 
 	upload: async(filePath, config) => {
 
-		process.stdout.write(`\nUploading to ${config.target} (${config.region})...`);
+		//process.stdout.write(`\nUploading to ${config.target} (${config.region})...`);
 
 		const uploadPromise = new Promise((resolve, reject) => {
 
@@ -35,7 +34,7 @@ const uploadHelper = {
 					reject(err);
 				}
 				if (data) {
-					process.stdout.write(`${chalk.green('success!')}\n${data.Location}\n\n`);
+					//process.stdout.write(`${chalk.green('success!')}\n${data.Location}\n\n`);
 					resolve(data);
 				}
 			});

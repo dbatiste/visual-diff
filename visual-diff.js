@@ -5,129 +5,160 @@ const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const polyserve = require('polyserve');
 const uploadHandler = require('./s3-upload.js');
-const helpers = require('./helpers.js');
 
-const compare = async(currentDir, goldenDir, name, uploadConfig) => {
-
-	if (process.argv.includes('--golden')) {
-		fs.copyFileSync(getScreenshotPath(currentDir, name), getScreenshotPath(goldenDir, name));
-		// eslint-disable-next-line no-console
-		console.log(`${chalk.hex('#DCDCAA')('      golden updated')}`);
+let _uploadConfig = {
+	key: 'S3',
+	target: 'visualdiff.gaudi.d2l/screenshots',
+	region: 'ca-central-1',
+	creds: {
+		accessKeyId: process.env['S3ID'],
+		secretAccessKey: process.env['S3KEY']
 	}
-
-	if (uploadConfig) await uploadHandler.upload(getScreenshotPath(currentDir, name), uploadConfig);
-
-	expect(fs.existsSync(getScreenshotPath(goldenDir, name)), 'golden exists').equal(true);
-
-	const img1 = await getImage(getScreenshotPath(currentDir, name));
-	const img2 = await getImage(getScreenshotPath(goldenDir, name));
-
-	expect(img1.width, 'image widths are the same').equal(img2.width);
-	expect(img1.height, 'image heights are the same').equal(img2.height);
-
-	const diff = new PNG({width: img1.width, height: img1.height});
-
-	const numDiffPixels = pixelmatch(
-		img1.data, img2.data, diff.data, img1.width, img1.height, {threshold: 0.1}
-	);
-
-	if (numDiffPixels !== 0) {
-		diff.pack().pipe(fs.createWriteStream(getScreenshotPath(currentDir, `${name}-diff`)));
-		if (uploadConfig) await uploadHandler.upload(getScreenshotPath(currentDir, `${name}-diff`), uploadConfig);
-	}
-
-	expect(numDiffPixels, 'number of different pixels').equal(0);
 };
 
-const formatName = (name) => {
-	return name.replace(/ /g, '-');
-};
+const visualDiff = {
 
-const getImage = (path) => {
-	return new Promise((resolve) => {
-		let image = null;
-		const doneReading = () => {
-			resolve(image);
+	compare: async function(name) {
+		await this._compare(this._currentDir, this._goldenDir, name);
+	},
+
+	initialize: async function(options) {
+
+		this._testRoot = `${(options && options.dir) ? options.dir : process.cwd()}/screenshots`;
+		this._currentDir = `${this._testRoot}/current`;
+		this._goldenDir = `${this._testRoot}/golden`;
+		this._port = (options && options.port) ? options.port : 8081;
+
+		if (options.upload) _uploadConfig = Object.assign(_uploadConfig, options.upload);
+		_uploadConfig.target = `${_uploadConfig.target}/${options.name}/${this._getTimestamp('-', '.')}`;
+
+		if (!fs.existsSync(this._testRoot)) fs.mkdirSync(this._testRoot);
+		if (!fs.existsSync(this._currentDir)) fs.mkdirSync(this._currentDir);
+		if (!fs.existsSync(this._goldenDir)) fs.mkdirSync(this._goldenDir);
+
+		const serveOptions = {
+			port: this._port,
+			npm: true,
+			moduleResolution: 'node'
 		};
-		image = fs.createReadStream(path).pipe(new PNG()).on('parsed', doneReading);
-	});
-};
 
-const getScreenshotPath = (dir, name) => {
-	return `${dir}/${formatName(name)}.png`;
-};
+		const server = await polyserve.startServer(serveOptions);
+		const url = polyserve.getServerUrls(serveOptions, server).componentUrl;
 
-module.exports = {
+		this._serverInfo = Object.assign({
+			baseUrl: `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/,'')}`
+		}, url);
 
-	run: (delegate, options) => {
+		this.baseUrl = this._serverInfo.baseUrl;
 
-		const testRoot = `${(options && options.dir) ? options.dir : process.cwd()}/screenshots` ;
-		const currentDir = `${testRoot}/current`;
-		const goldenDir = `${testRoot}/golden`;
-		const port = (options && options.port) ? options.port : 8081;
-		const uploadConfig = (options.upload ? Object.assign({}, options.upload) : null);
-		let server, serverInfo;
-
-		if (uploadConfig) uploadConfig.target = `${uploadConfig.target}/${options.name}/${helpers.getTimestamp('-', '.')}`;
-
-		before(async() => {
-			if (!fs.existsSync(testRoot)) fs.mkdirSync(testRoot);
-			if (!fs.existsSync(currentDir)) fs.mkdirSync(currentDir);
-			if (!fs.existsSync(goldenDir)) fs.mkdirSync(goldenDir);
-			const options = {
-				port: port,
-				npm: true,
-				moduleResolution: 'node'
-			};
-			server = await polyserve.startServer(options);
-			const url = polyserve.getServerUrls(options, server).componentUrl;
-			serverInfo = Object.assign({
-				baseUrl: `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/,'')}`
-			}, url);
-		});
+		process.stdout.write(`Started server with base: ${this._serverInfo.baseUrl}\n`);
 
 		after(async() => {
 			await server.close();
+			process.stdout.write('Stopped server.');
 		});
 
-		delegate({
+	},
 
-			screenshotPath: (name) => {
-				return getScreenshotPath(currentDir, name);
-			},
+	puppeteer: {
 
-			compare: async(name) => {
-				compare(currentDir, goldenDir, name, uploadConfig);
-			},
+		getRect: async function(page, selector, margin) {
+			margin = (margin !== undefined) ? margin : 10;
+			return page.$eval(selector, (elem, margin) => {
+				return {
+					x: elem.offsetLeft - margin,
+					y: elem.offsetTop - margin,
+					width: elem.offsetWidth + (margin * 2),
+					height: elem.offsetHeight + (margin * 2)
+				};
+			}, margin);
+		},
 
-			serverInfo: () => {
-				return serverInfo;
-			},
+		screenshotAndCompare: async function(page, name, options) {
+			const info = Object.assign({path: visualDiff._getScreenshotPath(visualDiff._currentDir, name)}, options);
+			await page.screenshot(info);
+			await visualDiff._compare(visualDiff._currentDir, visualDiff._goldenDir, name);
+		}
 
-			puppeteer: {
+	},
 
-				getRect: async(page, selector, margin) => {
-					margin = (margin !== undefined) ? margin : 10;
-					return page.$eval(selector, (elem, margin) => {
-						return {
-							x: elem.offsetLeft - margin,
-							y: elem.offsetTop - margin,
-							width: elem.offsetWidth + (margin * 2),
-							height: elem.offsetHeight + (margin * 2)
-						};
-					}, margin);
-				},
+	screenshotPath: function(name) {
+		return this._getScreenshotPath(this._currentDir, name);
+	},
 
-				screenshotAndCompare: async(page, name, options) => {
-					const info = Object.assign({path: getScreenshotPath(currentDir, name)}, options);
-					await page.screenshot(info);
-					await compare(currentDir, goldenDir, name, uploadConfig);
-				}
+	_compare: async function(currentDir, goldenDir, name) {
 
-			}
+		const currentPath = this._getScreenshotPath(this._currentDir, name);
+		const goldenPath = this._getScreenshotPath(this._goldenDir, name);
 
+		if (process.argv.includes('--golden')) {
+			fs.copyFileSync(currentPath, goldenPath);
+			// eslint-disable-next-line no-console
+			console.log(`${chalk.hex('#DCDCAA')('      golden updated')}`);
+		}
+
+		if (_uploadConfig) await uploadHandler.upload(currentPath, _uploadConfig);
+
+		expect(fs.existsSync(goldenPath), 'golden exists').equal(true);
+
+		const img1 = await this._getImage(currentPath);
+		const img2 = await this._getImage(goldenPath);
+
+		expect(img1.width, 'image widths are the same').equal(img2.width);
+		expect(img1.height, 'image heights are the same').equal(img2.height);
+
+		const diff = new PNG({width: img1.width, height: img1.height});
+
+		const numDiffPixels = pixelmatch(
+			img1.data, img2.data, diff.data, img1.width, img1.height, {threshold: 0.1}
+		);
+
+		if (numDiffPixels !== 0) {
+			const diffPath = this._getScreenshotPath(this._currentDir, `${name}-diff`);
+			diff.pack().pipe(fs.createWriteStream(diffPath));
+			if (_uploadConfig) await uploadHandler.upload(diffPath, _uploadConfig);
+		}
+
+		expect(numDiffPixels, 'number of different pixels').equal(0);
+
+	},
+
+	_formatName: function(name) {
+		return name.replace(/ /g, '-');
+	},
+
+	_getImage: function(path) {
+		return new Promise((resolve) => {
+			const image = fs.createReadStream(path).pipe(new PNG()).on('parsed', () => {
+				resolve(image);
+			});
 		});
+	},
 
+	_getScreenshotPath: function(dir, name) {
+		return `${dir}/${this._formatName(name)}.png`;
+	},
+
+	_getTimestamp: function(dateDelim, timeDelim) {
+		dateDelim = dateDelim ? dateDelim : '-';
+		timeDelim = timeDelim ? timeDelim : ':';
+		const date = new Date();
+		const year = date.getUTCFullYear();
+		const month = date.getUTCMonth() + 1;
+		const day = date.getUTCDate();
+		const hours = date.getUTCHours();
+		const minutes = date.getUTCMinutes();
+		const seconds = date.getUTCSeconds();
+		const milliseconds = date.getUTCMilliseconds();
+		return year + dateDelim
+			+ (month < 10 ? '0' + month : month) + dateDelim
+			+ (day < 10 ? '0' + day : day) + ' '
+			+ (hours < 10 ? '0' + hours : hours) + timeDelim
+			+ (minutes < 10 ? '0' + minutes : minutes) + timeDelim
+			+ (seconds < 10 ? '0' + seconds : seconds) + '.'
+			+ milliseconds;
 	}
 
 };
+
+module.exports = visualDiff;
