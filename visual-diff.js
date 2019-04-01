@@ -33,7 +33,7 @@ const compare = async(currentDir, goldenDir, name, uploadConfig) => {
 
 	if (numDiffPixels !== 0) {
 		diff.pack().pipe(fs.createWriteStream(getScreenshotPath(currentDir, `${name}-diff`)));
-		if (upload) await uploadHandler.upload(getScreenshotPath(currentDir, `${name}-diff`), uploadConfig);
+		if (uploadConfig) await uploadHandler.upload(getScreenshotPath(currentDir, `${name}-diff`), uploadConfig);
 	}
 
 	expect(numDiffPixels, 'number of different pixels').equal(0);
