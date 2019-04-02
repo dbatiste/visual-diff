@@ -8,7 +8,7 @@ Given...
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <script src="../../node_modules/@webcomponents/webcomponentsjs/webcomponents-bundle.js"></script>
+    <script src="../../node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
     <script type="module">
       import '../../components/colors/colors.js';
       import '../../components/typography/typography.js';
@@ -35,41 +35,42 @@ Take screenshots and compare...
 const puppeteer = require('puppeteer');
 const visualDiff = require('visual-diff');
 
-visualDiff.run((ctx) => {
+before(async() => {
+	await visualDiff.initialize({
+		name: 'button', dir: __dirname, port: 8081
+	});
+});
 
-  describe('d2l-button-subtle', function() {
+describe('d2l-button-subtle', function() {
 
-    this.timeout(10000);
-    let browser, page;
+	let browser, page;
 
-    before(async() => {
-      browser = await puppeteer.launch();
-      page = await browser.newPage();
-    });
+	before(async() => {
+		browser = await puppeteer.launch();
+		page = await browser.newPage();
+	});
 
-    after(() => browser.close());
+	after(() => browser.close());
 
-    describe('wide', function() {
+	describe('wide', function() {
 
-      beforeEach(async function() {
-        await page.setViewport({width: 800, height: 800, deviceScaleFactor: 2});
-        await page.goto(`http://127.0.0.1:${ctx.port}/components/d2l-core-ui/test/button/button-subtle-fixture.html`, {waitUntil: ['networkidle2', 'load']});
-      });
+		beforeEach(async function() {
+			await page.setViewport({width: 800, height: 800, deviceScaleFactor: 2});
+			await page.goto(`${visualDiff.baseUrl}/demo/button/button-subtle.html`, {waitUntil: ['networkidle2', 'load']});
+		});
 
-      it('normal', async function() {
-        const rect = await ctx.puppeteer.getRect(page, '#normal');
-        await ctx.puppeteer.screenshotAndCompare(page, this.test.fullTitle(), { clip: rect });
-      });
+		it('normal', async function() {
+			const rect = await visualDiff.puppeteer.getRect(page, '#normal');
+			await visualDiff.puppeteer.screenshotAndCompare(page, this.test.fullTitle(), { clip: rect });
+		});
 
-      it('focus', async function() {
-        await page.click('#normal');
-        const rect = await ctx.puppeteer.getRect(page, '#normal');
-        await ctx.puppeteer.screenshotAndCompare(page, this.test.fullTitle(), { clip: rect });
-      });
+		it('mouse', async function() {
+			await page.hover('#normal');
+			const rect = await visualDiff.puppeteer.getRect(page, '#normal');
+			await visualDiff.puppeteer.screenshotAndCompare(page, this.test.fullTitle(), { clip: rect });
+		});
 
-    });
+	});
 
-  });
-
-}, {dir: __dirname, port: 8081});
+});
 ```

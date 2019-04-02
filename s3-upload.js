@@ -3,13 +3,40 @@ const chalk = require('chalk');
 const fs = require('fs');
 const path = require('path');
 
-const uploadHelper = {
+chalk.level = 3;
 
-	upload: async(filePath, config) => {
+const helper = {
 
-		//process.stdout.write(`\nUploading to ${config.target} (${config.region})...`);
+	getFile: (filePath, config) => {
+		const promise = new Promise((resolve, reject) => {
 
-		const uploadPromise = new Promise((resolve, reject) => {
+			const s3 = new AWS.S3({
+				apiVersion: 'latest',
+				accessKeyId: config.creds.accessKeyId,
+				secretAccessKey: config.creds.secretAccessKey,
+				region: config.region
+			});
+
+			const params = {Bucket: config.target, Key: path.basename(filePath)};
+
+			s3.getObject(params, function(err, data) {
+				if (err) {
+					process.stdout.write(`\n${chalk.red(err)}`);
+					reject(err);
+				}
+				if (data) {
+					fs.writeFileSync(filePath, data.Body);
+					resolve();
+				}
+			});
+		});
+
+		return promise;
+	},
+
+	uploadFile: (filePath, config) => {
+
+		const promise = new Promise((resolve, reject) => {
 
 			const s3 = new AWS.S3({
 				apiVersion: 'latest',
@@ -34,16 +61,15 @@ const uploadHelper = {
 					reject(err);
 				}
 				if (data) {
-					//process.stdout.write(`${chalk.green('success!')}\n${data.Location}\n\n`);
 					resolve(data);
 				}
 			});
 
 		});
 
-		return uploadPromise;
+		return promise;
 	}
 
 };
 
-module.exports = uploadHelper;
+module.exports = helper;

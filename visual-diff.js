@@ -4,9 +4,11 @@ const fs = require('fs');
 const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const polyserve = require('polyserve');
-const uploadHandler = require('./s3-upload.js');
+const s3Helper = require('./s3-upload.js');
 
-let _uploadConfig = {
+chalk.level = 3;
+
+let _s3Config = {
 	key: 'S3',
 	target: 'visualdiff.gaudi.d2l/screenshots',
 	region: 'ca-central-1',
@@ -15,6 +17,7 @@ let _uploadConfig = {
 		secretAccessKey: process.env['S3KEY']
 	}
 };
+let _s3Current = {}, _s3Golden = {};
 
 const visualDiff = {
 
@@ -29,8 +32,10 @@ const visualDiff = {
 		this._goldenDir = `${this._testRoot}/golden`;
 		this._port = (options && options.port) ? options.port : 8081;
 
-		if (options.upload) _uploadConfig = Object.assign(_uploadConfig, options.upload);
-		_uploadConfig.target = `${_uploadConfig.target}/${options.name}/${this._getTimestamp('-', '.')}`;
+		if (options.upload) _s3Config = Object.assign(_s3Config, options.upload);
+		_s3Current = Object.assign(_s3Current, _s3Config, { target: `${_s3Config.target}/${options.name}/${this._getTimestamp('-', '.')}`});
+		//_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden`});
+		_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden.macos`});
 
 		if (!fs.existsSync(this._testRoot)) fs.mkdirSync(this._testRoot);
 		if (!fs.existsSync(this._currentDir)) fs.mkdirSync(this._currentDir);
@@ -46,7 +51,7 @@ const visualDiff = {
 		const url = polyserve.getServerUrls(serveOptions, server).componentUrl;
 
 		this._serverInfo = Object.assign({
-			baseUrl: `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/,'')}`
+			baseUrl: `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/, '')}`
 		}, url);
 
 		this.baseUrl = this._serverInfo.baseUrl;
@@ -93,11 +98,13 @@ const visualDiff = {
 
 		if (process.argv.includes('--golden')) {
 			fs.copyFileSync(currentPath, goldenPath);
-			// eslint-disable-next-line no-console
-			console.log(`${chalk.hex('#DCDCAA')('      golden updated')}`);
+			process.stdout.write(`${chalk.hex('#DCDCAA')('      golden updated')}`);
 		}
 
-		if (_uploadConfig) await uploadHandler.upload(currentPath, _uploadConfig);
+		if (_s3Current) await s3Helper.uploadFile(currentPath, _s3Current);
+		if (_s3Golden) {
+			await s3Helper.getFile(goldenPath, _s3Golden);
+		}
 
 		expect(fs.existsSync(goldenPath), 'golden exists').equal(true);
 
@@ -116,7 +123,7 @@ const visualDiff = {
 		if (numDiffPixels !== 0) {
 			const diffPath = this._getScreenshotPath(this._currentDir, `${name}-diff`);
 			diff.pack().pipe(fs.createWriteStream(diffPath));
-			if (_uploadConfig) await uploadHandler.upload(diffPath, _uploadConfig);
+			if (_s3Current) await s3Helper.uploadFile(diffPath, _s3Current);
 		}
 
 		expect(numDiffPixels, 'number of different pixels').equal(0);
