@@ -34,8 +34,8 @@ const visualDiff = {
 
 		if (options.upload) _s3Config = Object.assign(_s3Config, options.upload);
 		_s3Current = Object.assign(_s3Current, _s3Config, { target: `${_s3Config.target}/${options.name}/${this._getTimestamp('-', '.')}`});
-		//_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden`});
-		_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden.macos`});
+		_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden`});
+		//_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden.macos`});
 
 		if (!fs.existsSync(this._testRoot)) fs.mkdirSync(this._testRoot);
 		if (!fs.existsSync(this._currentDir)) fs.mkdirSync(this._currentDir);
