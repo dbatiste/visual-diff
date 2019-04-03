@@ -67,7 +67,7 @@ const visualDiff = {
 
 		after(async() => {
 			if (this._isGoldenUpdate) {
-				await this._deleteOrphanedGoldens();
+				//await this._deleteOrphanedGoldens();
 			}
 			await server.close();
 			process.stdout.write('Stopped server.\n');
