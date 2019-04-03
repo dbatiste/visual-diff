@@ -9,6 +9,7 @@ const s3Helper = require('./s3-upload.js');
 chalk.level = 3;
 
 let _s3Config = {
+	bucket: 'visualdiff.gaudi.d2l',
 	key: 'S3',
 	target: 'visualdiff.gaudi.d2l/screenshots',
 	region: 'ca-central-1',
@@ -27,6 +28,9 @@ const visualDiff = {
 
 	initialize: async function(options) {
 
+		this._isCI = process.env['CI'];
+		//this._isCI = false;
+		this._isGoldenUpdate = process.argv.includes('--golden');
 		this._testRoot = `${(options && options.dir) ? options.dir : process.cwd()}/screenshots`;
 		this._currentDir = `${this._testRoot}/current`;
 		this._goldenDir = `${this._testRoot}/golden`;
@@ -34,8 +38,8 @@ const visualDiff = {
 
 		if (options.upload) _s3Config = Object.assign(_s3Config, options.upload);
 		_s3Current = Object.assign(_s3Current, _s3Config, { target: `${_s3Config.target}/${options.name}/${this._getTimestamp('-', '.')}`});
-		_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden`});
-		//_s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden.macos`});
+		if (this._isCI) _s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden`});
+		//if (this._isCI) _s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden.macos`});
 
 		if (!fs.existsSync(this._testRoot)) fs.mkdirSync(this._testRoot);
 		if (!fs.existsSync(this._currentDir)) fs.mkdirSync(this._currentDir);
@@ -56,11 +60,14 @@ const visualDiff = {
 
 		this.baseUrl = this._serverInfo.baseUrl;
 
-		process.stdout.write(`Started server with base: ${this._serverInfo.baseUrl}\n`);
+		process.stdout.write(`Started server with base: ${this._serverInfo.baseUrl}\n\n`);
 
 		after(async() => {
+			if (this._isGoldenUpdate) {
+				await this._deleteOrphanedGoldens();
+			}
 			await server.close();
-			process.stdout.write('Stopped server.');
+			process.stdout.write('Stopped server.\n');
 		});
 
 	},
@@ -93,31 +100,28 @@ const visualDiff = {
 
 	_compare: async function(currentDir, goldenDir, name) {
 
+		if (this._isGoldenUpdate) {
+			return this._updateGolden(currentDir, goldenDir, name);
+		}
+
 		const currentPath = this._getScreenshotPath(this._currentDir, name);
 		const goldenPath = this._getScreenshotPath(this._goldenDir, name);
 
-		if (process.argv.includes('--golden')) {
-			fs.copyFileSync(currentPath, goldenPath);
-			process.stdout.write(`${chalk.hex('#DCDCAA')('      golden updated')}`);
-		}
-
-		if (_s3Current) await s3Helper.uploadFile(currentPath, _s3Current);
-		if (_s3Golden) {
-			await s3Helper.getFile(goldenPath, _s3Golden);
-		}
+		const goldenExists = this._isCI ? await s3Helper.getFile(goldenPath, _s3Golden)
+			: fs.existsSync(goldenPath);
 
 		expect(fs.existsSync(goldenPath), 'golden exists').equal(true);
 
-		const img1 = await this._getImage(currentPath);
-		const img2 = await this._getImage(goldenPath);
+		const currentImage = await this._getImage(currentPath);
+		const goldenImage = goldenExists ? await this._getImage(goldenPath) : null;
 
-		expect(img1.width, 'image widths are the same').equal(img2.width);
-		expect(img1.height, 'image heights are the same').equal(img2.height);
+		expect(currentImage.width, 'image widths are the same').equal(goldenImage.width);
+		expect(currentImage.height, 'image heights are the same').equal(goldenImage.height);
 
-		const diff = new PNG({width: img1.width, height: img1.height});
+		const diff = new PNG({width: currentImage.width, height: currentImage.height});
 
 		const numDiffPixels = pixelmatch(
-			img1.data, img2.data, diff.data, img1.width, img1.height, {threshold: 0.1}
+			currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
 		);
 
 		if (numDiffPixels !== 0) {
@@ -127,6 +131,30 @@ const visualDiff = {
 		}
 
 		expect(numDiffPixels, 'number of different pixels').equal(0);
+
+	},
+
+	_deleteOrphanedGoldens: async function() {
+
+		process.stdout.write('Removed orphaned goldens.\n');
+
+		const currentFiles = fs.readdirSync(this._currentDir);
+		const goldenFiles = this._isCI ? await s3Helper.getFileList(_s3Golden)
+			: fs.readdirSync(this._goldenDir);
+
+		for (let i = 0; i < goldenFiles.length; i++) {
+			const fileName = goldenFiles[i];
+			if (!currentFiles.includes(fileName)) {
+				if (this._isCI) {
+					await s3Helper.deleteFile(`${this._goldenDir}/${this._formatName(fileName)}`, _s3Golden);
+				} else {
+					fs.unlinkSync(`${this._goldenDir}/${this._formatName(fileName)}`);
+				}
+				process.stdout.write(`${chalk.gray(fileName)}\n`);
+			}
+		}
+
+		process.stdout.write('\n');
 
 	},
 
@@ -164,6 +192,42 @@ const visualDiff = {
 			+ (minutes < 10 ? '0' + minutes : minutes) + timeDelim
 			+ (seconds < 10 ? '0' + seconds : seconds) + '.'
 			+ milliseconds;
+	},
+
+	_updateGolden: async function(currentDir, goldenDir, name) {
+
+		const currentPath = this._getScreenshotPath(this._currentDir, name);
+		const goldenPath = this._getScreenshotPath(this._goldenDir, name);
+
+		const goldenExists = this._isCI ? await s3Helper.getFile(goldenPath, _s3Golden)
+			: fs.existsSync(goldenPath);
+
+		const currentImage = await this._getImage(currentPath);
+		const goldenImage = goldenExists ? await this._getImage(goldenPath) : null;
+
+		let updateGolden = false;
+		if (!goldenExists) {
+			updateGolden = true;
+		} else if (currentImage.width !== goldenImage.width || currentImage.height !== goldenImage.height) {
+			updateGolden = true;
+		} else {
+			const diff = new PNG({width: currentImage.width, height: currentImage.height});
+			const numDiffPixels = pixelmatch(
+				currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
+			);
+			if (numDiffPixels !== 0) updateGolden = true;
+		}
+
+		if (updateGolden) {
+			if (this._isCI) {
+				await s3Helper.uploadFile(currentPath, _s3Golden);
+			} else {
+				fs.copyFileSync(currentPath, goldenPath);
+			}
+		}
+
+		process.stdout.write(`${chalk.gray(updateGolden ? '      golden updated' : '      golden already up to date')}`);
+
 	}
 
 };
