@@ -60,9 +60,8 @@ const visualDiff = {
 
 		this.baseUrl = this._serverInfo.baseUrl;
 
-		process.stdout.write(`CI: ${this._isCI}\n`);
-		process.stdout.write(`Remote bucket: ${_s3Golden.bucket}\n`);
-		process.stdout.write(`Remote target: ${_s3Golden.target}\n\n`);
+		process.stdout.write(`Current target: ${_s3Current.target}\n`);
+		process.stdout.write(`Golden target: ${_s3Golden.target}\n\n`);
 		process.stdout.write(`Started server with base: ${this._serverInfo.baseUrl}\n\n`);
 
 		after(async() => {
@@ -145,15 +144,8 @@ const visualDiff = {
 		const goldenFiles = this._isCI ? await s3Helper.getFileList(_s3Golden)
 			: fs.readdirSync(this._goldenDir);
 
-		process.stdout.write(`current files\n`);
-		for (let c = 0; c < currentFiles.length; c++) {
-			process.stdout.write(`${currentFiles[c]}\n`);
-		}
-		process.stdout.write(`\n\n`);
-
 		for (let i = 0; i < goldenFiles.length; i++) {
 			const fileName = goldenFiles[i];
-			process.stdout.write(`golden file name: ${fileName}\n`);
 			if (!currentFiles.includes(fileName)) {
 				if (this._isCI) {
 					await s3Helper.deleteFile(`${this._goldenDir}/${this._formatName(fileName)}`, _s3Golden);
