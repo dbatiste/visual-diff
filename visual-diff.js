@@ -37,7 +37,7 @@ const visualDiff = {
 		this._port = (options && options.port) ? options.port : 8081;
 
 		if (options.upload) _s3Config = Object.assign(_s3Config, options.upload);
-		_s3Current = Object.assign(_s3Current, _s3Config, { target: `${_s3Config.target}/${options.name}/${this._getTimestamp('-', '.')}`});
+		if (this._isCI) _s3Current = Object.assign(_s3Current, _s3Config, { target: `${_s3Config.target}/${options.name}/${this._getTimestamp('-', '.')}`});
 		if (this._isCI) _s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden`});
 		//if (this._isCI) _s3Golden = Object.assign(_s3Golden, _s3Config, { target: `${_s3Config.target}/${options.name}/golden.macos`});
 
@@ -112,6 +112,8 @@ const visualDiff = {
 		const goldenExists = this._isCI ? await s3Helper.getFile(goldenPath, _s3Golden)
 			: fs.existsSync(goldenPath);
 
+		if (this._isCI) await s3Helper.uploadFile(currentPath, _s3Current);
+
 		expect(fs.existsSync(goldenPath), 'golden exists').equal(true);
 
 		const currentImage = await this._getImage(currentPath);
@@ -129,7 +131,7 @@ const visualDiff = {
 		if (numDiffPixels !== 0) {
 			const diffPath = this._getScreenshotPath(this._currentDir, `${name}-diff`);
 			diff.pack().pipe(fs.createWriteStream(diffPath));
-			if (_s3Current) await s3Helper.uploadFile(diffPath, _s3Current);
+			if (this._isCI) await s3Helper.uploadFile(diffPath, _s3Current);
 		}
 
 		expect(numDiffPixels, 'number of different pixels').equal(0);
