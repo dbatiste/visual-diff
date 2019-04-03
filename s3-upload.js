@@ -92,7 +92,7 @@ const helper = {
 				if (data) {
 					const files = [];
 					for (let i = 0; i < data.Contents.length; i++) {
-						const name = data.Contents[i].Key.replace(`${params.Prefix}/`, '');
+						const name = data.Contents[i].Key.replace(params.Prefix, '');
 						if (name.length > 0) files.push(name);
 					}
 					resolve(files);
