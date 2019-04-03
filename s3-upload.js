@@ -81,7 +81,7 @@ const helper = {
 
 			const params = {
 				Bucket: config.bucket,
-				Prefix: config.target.replace(`${config.bucket}/`, '')
+				Prefix: `${config.target.replace(`${config.bucket}/`, '')}/`
 			};
 
 			s3.listObjectsV2(params, function(err, data) {
