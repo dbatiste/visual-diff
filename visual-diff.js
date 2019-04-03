@@ -60,6 +60,9 @@ const visualDiff = {
 
 		this.baseUrl = this._serverInfo.baseUrl;
 
+		process.stdout.write(`CI: ${this._isCI}\n`);
+		process.stdout.write(`Remote bucket: ${_s3Golden.bucket}\n`);
+		process.stdout.write(`Remote target: ${_s3Golden.target}\n\n`);
 		process.stdout.write(`Started server with base: ${this._serverInfo.baseUrl}\n\n`);
 
 		after(async() => {
