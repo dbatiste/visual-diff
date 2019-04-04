@@ -11,7 +11,7 @@ class FileHelper {
 
 		if (!fs.existsSync(this.rootDir)) fs.mkdirSync(this.rootDir);
 		if (!fs.existsSync(this.goldenDir)) fs.mkdirSync(this.goldenDir);
-		this.removeDir(this.currentDir);
+		this.cleanDir(this.currentDir);
 		if (!fs.existsSync(this.currentDir)) fs.mkdirSync(this.currentDir);
 	}
 
@@ -43,19 +43,18 @@ class FileHelper {
 		return name.replace(/ /g, '-');
 	}
 
-	removeDir(path) {
-		let files = [];
-		if(fs.existsSync(path) ) {
-			files = fs.readdirSync(path);
-			files.forEach((file,index) => {
-				const curPath = path + "/" + file;
-				if(fs.lstatSync(curPath).isDirectory()) {
-					this.removeDir(curPath);
+	cleanDir(path, remove) {
+		if (fs.existsSync(path)) {
+			const files = fs.readdirSync(path);
+			files.forEach((file) => {
+				const currentPath = path + "/" + file;
+				if (fs.lstatSync(currentPath).isDirectory()) {
+					this.cleanDir(currentPath, true);
 				} else {
-					fs.unlinkSync(curPath);
+					fs.unlinkSync(currentPath);
 				}
 			});
-			fs.rmdirSync(path);
+			if (remove) fs.rmdirSync(path);
 		}
 	}
 
