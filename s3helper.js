@@ -3,11 +3,35 @@ const chalk = require('chalk');
 const fs = require('fs');
 const path = require('path');
 
-chalk.level = 3;
+let _s3Config = {
+	bucket: 'visualdiff.gaudi.d2l',
+	key: 'S3',
+	target: 'visualdiff.gaudi.d2l/screenshots',
+	region: 'ca-central-1',
+	creds: {
+		accessKeyId: process.env['S3ID'],
+		secretAccessKey: process.env['S3KEY']
+	}
+};
 
-const helper = {
+class S3Helper {
 
-	deleteFile: (filePath, config) => {
+	constructor(name, config, isCI) {
+		if (config) _s3Config = Object.assign(_s3Config, config);
+		if (isCI) this.currentConfig = Object.assign({}, _s3Config, { target: `${_s3Config.target}/${name}/${this.getTimestamp('-', '.')}`});
+		if (isCI) this.goldenConfig = Object.assign({}, _s3Config, { target: `${_s3Config.target}/${name}/golden`});
+		//if (isCI) this.goldenConfig = Object.assign({}, _s3Config, { target: `${_s3Config.target}/${name}/golden.macos`});
+	}
+
+	deleteCurrentFile(filePath) {
+		return this.deleteFile(filePath, this.currentConfig);
+	}
+
+	deleteGoldenFile(filePath) {
+		return this.deleteFile(filePath, this.goldenConfig);
+	}
+
+	deleteFile(filePath, config) {
 		const promise = new Promise((resolve, reject) => {
 
 			const s3 = new AWS.S3({
@@ -36,9 +60,17 @@ const helper = {
 		});
 
 		return promise;
-	},
+	}
 
-	getFile: (filePath, config) => {
+	getCurrentFile(filePath) {
+		return this.getFile(filePath, this.currentConfig);
+	}
+
+	getGoldenFile(filePath) {
+		return this.getFile(filePath, this.goldenConfig);
+	}
+
+	getFile(filePath, config) {
 		const promise = new Promise((resolve, reject) => {
 
 			const s3 = new AWS.S3({
@@ -67,9 +99,17 @@ const helper = {
 		});
 
 		return promise;
-	},
+	}
 
-	getFileList: (config) => {
+	getCurrentFileList() {
+		return this.getFileList(this.currentConfig);
+	}
+
+	getGoldenFileList() {
+		return this.getFileList(this.goldenConfig);
+	}
+
+	getFileList(config) {
 		const promise = new Promise((resolve, reject) => {
 
 			const s3 = new AWS.S3({
@@ -102,10 +142,37 @@ const helper = {
 		});
 
 		return promise;
-	},
+	}
 
-	uploadFile: (filePath, config) => {
+	getTimestamp(dateDelim, timeDelim) {
+		dateDelim = dateDelim ? dateDelim : '-';
+		timeDelim = timeDelim ? timeDelim : ':';
+		const date = new Date();
+		const year = date.getUTCFullYear();
+		const month = date.getUTCMonth() + 1;
+		const day = date.getUTCDate();
+		const hours = date.getUTCHours();
+		const minutes = date.getUTCMinutes();
+		const seconds = date.getUTCSeconds();
+		const milliseconds = date.getUTCMilliseconds();
+		return year + dateDelim
+			+ (month < 10 ? '0' + month : month) + dateDelim
+			+ (day < 10 ? '0' + day : day) + ' '
+			+ (hours < 10 ? '0' + hours : hours) + timeDelim
+			+ (minutes < 10 ? '0' + minutes : minutes) + timeDelim
+			+ (seconds < 10 ? '0' + seconds : seconds) + '.'
+			+ milliseconds;
+	}
 
+	uploadCurrentFile(filePath) {
+		return this.uploadFile(filePath, this.currentConfig);
+	}
+
+	uploadGoldenFile(filePath) {
+		return this.uploadFile(filePath, this.goldenConfig);
+	}
+
+	uploadFile(filePath, config) {
 		const promise = new Promise((resolve, reject) => {
 
 			const s3 = new AWS.S3({
@@ -136,10 +203,9 @@ const helper = {
 			});
 
 		});
-
 		return promise;
 	}
 
 };
 
-module.exports = helper;
+module.exports = S3Helper;
