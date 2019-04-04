@@ -5,15 +5,10 @@ const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const polyserve = require('polyserve');
 const FileHelper = require('./filehelper.js');
-const S3Helper = require('./s3helper.js');
 
-let _fs, _s3;
+let _fs;
 
 const visualDiff = {
-
-	compare: async function(name) {
-		await this._compare(_fs.currentDir, _fs.goldenDir, name);
-	},
 
 	initialize: async function(options) {
 
@@ -21,13 +16,15 @@ const visualDiff = {
 		this._isCI = process.env['CI'];
 		//this._isCI = true;
 
-		_fs = new FileHelper(`${(options && options.dir) ? options.dir : process.cwd()}/screenshots`);
-		_s3 = new S3Helper(options.name, options.upload, this._isCI);
-
-		this._port = (options && options.port) ? options.port : 8081;
+		_fs = new FileHelper(
+			options.name,
+			`${(options && options.dir) ? options.dir : process.cwd()}/screenshots`,
+			options.upload,
+			this._isCI
+		);
 
 		const serveOptions = {
-			port: this._port,
+			port: (options && options.port) ? options.port : 8081,
 			npm: true,
 			moduleResolution: 'node'
 		};
@@ -35,14 +32,13 @@ const visualDiff = {
 		const server = await polyserve.startServer(serveOptions);
 		const url = polyserve.getServerUrls(serveOptions, server).componentUrl;
 
-		this._serverInfo = Object.assign({
-			baseUrl: `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/, '')}`
-		}, url);
+		const baseUrl = `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/, '')}`;
+		this._serverInfo = Object.assign({baseUrl: baseUrl}, url);
 
 		this.baseUrl = this._serverInfo.baseUrl;
 
-		process.stdout.write(`Current target: ${this._isCI ? _s3.currentConfig.target : _fs.currentDir}\n`);
-		process.stdout.write(`Golden target: ${this._isCI ? _s3.goldenConfig.target : _fs.goldenDir}\n\n`);
+		process.stdout.write(`Current target: ${_fs.getCurrentTarget()}\n`);
+		process.stdout.write(`Golden target: ${_fs.getGoldenTarget()}\n\n`);
 		process.stdout.write(`Started server with base: ${this._serverInfo.baseUrl}\n\n`);
 
 		after(async() => {
@@ -71,34 +67,23 @@ const visualDiff = {
 
 		screenshotAndCompare: async function(page, name, options) {
 			const info = Object.assign({path: _fs.getCurrentPath(name)}, options);
+
 			await page.screenshot(info);
-			await visualDiff._compare(_fs.currentDir, _fs.goldenDir, name);
+			await _fs.putCurrentFile(name);
+
+			if (visualDiff._isGoldenUpdate) return visualDiff._updateGolden(name);
+			else await visualDiff._compare(name);
 		}
 
 	},
 
-	screenshotPath: function(name) {
-		return _fs.getCurrentPath(name);
-	},
+	_compare: async function(name) {
 
-	_compare: async function(currentDir, goldenDir, name) {
-
-		if (this._isGoldenUpdate) {
-			return this._updateGolden(currentDir, goldenDir, name);
-		}
-
-		const currentPath = _fs.getCurrentPath(name);
-		const goldenPath = _fs.getGoldenPath(name);
-
-		const goldenExists = this._isCI ? await _s3.getGoldenFile(goldenPath)
-			: fs.existsSync(goldenPath);
-
-		if (this._isCI) await _s3.uploadCurrentFile(currentPath);
-
+		const goldenExists = await _fs.hasGoldenFile(name);
 		expect(goldenExists, 'golden exists').equal(true);
 
-		const currentImage = await _fs.getImage(currentPath);
-		const goldenImage = goldenExists ? await _fs.getImage(goldenPath) : null;
+		const currentImage = await _fs.getCurrentImage(name);
+		const goldenImage = await _fs.getGoldenImage(name);
 
 		expect(currentImage.width, 'image widths are the same').equal(goldenImage.width);
 		expect(currentImage.height, 'image heights are the same').equal(goldenImage.height);
@@ -110,9 +95,10 @@ const visualDiff = {
 		);
 
 		if (numDiffPixels !== 0) {
-			const diffPath = _fs.getCurrentPath(`${name}-diff`);
+			const diffName = `${name}-diff`;
+			const diffPath = _fs.getCurrentPath(diffName);
 			diff.pack().pipe(fs.createWriteStream(diffPath));
-			if (this._isCI) await _s3.uploadCurrentFile(diffPath);
+			_fs.putCurrentFile(diffName);
 		}
 
 		expect(numDiffPixels, 'number of different pixels').equal(0);
@@ -124,16 +110,12 @@ const visualDiff = {
 		process.stdout.write('Removed orphaned goldens.\n');
 
 		const currentFiles = _fs.getCurrentFiles();
-		const goldenFiles = this._isCI ? await _s3.getGoldenFileList() : _fs.getGoldenFiles();
+		const goldenFiles = await _fs.getGoldenFiles();
 
 		for (let i = 0; i < goldenFiles.length; i++) {
 			const fileName = goldenFiles[i];
 			if (!currentFiles.includes(fileName)) {
-				if (this._isCI) {
-					await _s3.deleteGoldenFile(_fs.getGoldenPath(fileName));
-				} else {
-					fs.unlinkSync(_fs.getGoldenPath(fileName));
-				}
+				await _fs.removeGoldenFile(fileName);
 				process.stdout.write(`${chalk.gray(fileName)}\n`);
 			}
 		}
@@ -142,19 +124,13 @@ const visualDiff = {
 
 	},
 
-	_updateGolden: async function(currentDir, goldenDir, name) {
+	_updateGolden: async function(name) {
 
-		const currentPath = _fs.getCurrentPath(name);
-		const goldenPath = _fs.getGoldenPath(name);
-
-		const goldenExists = this._isCI ? await _s3.getGoldenFile(goldenPath)
-			: fs.existsSync(goldenPath);
-
-		const currentImage = await _fs.getImage(currentPath);
-		const goldenImage = goldenExists ? await _fs.getImage(goldenPath) : null;
+		const currentImage = await _fs.getCurrentImage(name);
+		const goldenImage = await _fs.getGoldenImage(name);
 
 		let updateGolden = false;
-		if (!goldenExists) {
+		if (!goldenImage) {
 			updateGolden = true;
 		} else if (currentImage.width !== goldenImage.width || currentImage.height !== goldenImage.height) {
 			updateGolden = true;
@@ -166,15 +142,14 @@ const visualDiff = {
 			if (numDiffPixels !== 0) updateGolden = true;
 		}
 
+		process.stdout.write('      ');
 		if (updateGolden) {
-			if (this._isCI) {
-				await _s3.uploadGoldenFile(currentPath);
-			} else {
-				fs.copyFileSync(currentPath, goldenPath);
-			}
+			const result = await _fs.updateGolden(name);
+			if (result) process.stdout.write(chalk.gray('golden updated'));
+			else process.stdout.write(chalk.gray('golden update failed'));
+		} else {
+			process.stdout.write(chalk.gray('golden already up to date'));
 		}
-
-		process.stdout.write(`${chalk.gray(updateGolden ? '      golden updated' : '      golden already up to date')}`);
 
 	}
 

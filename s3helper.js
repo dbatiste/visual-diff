@@ -206,6 +206,6 @@ class S3Helper {
 		return promise;
 	}
 
-};
+}
 
 module.exports = S3Helper;
