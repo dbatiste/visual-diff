@@ -122,10 +122,53 @@ const visualDiff = {
 
 	},
 
+	_updateGolden: async function(name) {
+
+		const currentImage = await _fs.getCurrentImage(name);
+		const goldenImage = await _fs.getGoldenImage(name);
+
+		let updateGolden = false;
+		if (!goldenImage) {
+			updateGolden = true;
+		} else if (currentImage.width !== goldenImage.width || currentImage.height !== goldenImage.height) {
+			updateGolden = true;
+		} else {
+			const diff = new PNG({width: currentImage.width, height: currentImage.height});
+			const pixelsDiff = pixelmatch(
+				currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
+			);
+			if (pixelsDiff !== 0) updateGolden = true;
+		}
+
+		process.stdout.write('      ');
+		if (updateGolden) {
+			const result = await _fs.updateGolden(name);
+			if (result) process.stdout.write(chalk.gray('golden updated'));
+			else process.stdout.write(chalk.gray('golden update failed'));
+		} else {
+			process.stdout.write(chalk.gray('golden already up to date'));
+		}
+
+	},
+
 	_generateHtml: async function(name, info) {
 
 		let goldenUrl = _fs.getGoldenUrl(name);
 		goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`;
+
+		const createMetaHtml = () => {
+			if (!this._isCI) return '';
+			const branch = process.env['TRAVIS_BRANCH'];
+			const sha = process.env['TRAVIS_COMMIT'];
+			const message = process.env['TRAVIS_COMMIT_MESSAGE'];
+			const url = process.env['TRAVIS_BUILD_WEB_URL'];
+			const build = process.env['TRAVIS_BUILD_NUMBER'];
+			return `<div class="meta">
+				<div>${branch} (${sha})</div>
+				<div><a href="${url}">Build #${build}</a></div>
+				<div>${message}</div>
+			</div>`;
+		}
 
 		const createArtifactHtml = (name, image, url) => {
 			if (image) {
@@ -167,11 +210,14 @@ const visualDiff = {
 						html { font-size: 20px; }
 						body { font-family: sans-serif; background-color: #333; color: #fff; margin: 18px; }
 						h1 { font-size: 1.2rem; font-weight: 400; margin: 24px 0; }
+						a { color: #006fbf; }
 						.compare { display: flex; }
 						.compare > div { margin: 0 9px; }
 						.compare > div:first-child { margin: 0 9px 0 0; }
 						.compare > div:last-child { margin: 0 0 0 9px; }
 						.label { display: flex; font-size: 0.8rem; margin-bottom: 6px; }
+						.meta { font-size: 0.6rem; margin-top: 24px; }
+						.meta > div { margin-bottom: 3px; }
 					</style>
 				</head>
 				<body>
@@ -181,38 +227,10 @@ const visualDiff = {
 						${createArtifactHtml('Golden', info.golden, goldenUrl)}
 						${createDiffHtml('Difference', info.pixelsDiff, _fs.getCurrentUrl(`${name}-diff`))}
 					</div>
+					${createMetaHtml()}
 				</body>
 			</html>`;
 		await _fs.writeCurrentFile(`${name}.html`, html);
-	},
-
-	_updateGolden: async function(name) {
-
-		const currentImage = await _fs.getCurrentImage(name);
-		const goldenImage = await _fs.getGoldenImage(name);
-
-		let updateGolden = false;
-		if (!goldenImage) {
-			updateGolden = true;
-		} else if (currentImage.width !== goldenImage.width || currentImage.height !== goldenImage.height) {
-			updateGolden = true;
-		} else {
-			const diff = new PNG({width: currentImage.width, height: currentImage.height});
-			const pixelsDiff = pixelmatch(
-				currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
-			);
-			if (pixelsDiff !== 0) updateGolden = true;
-		}
-
-		process.stdout.write('      ');
-		if (updateGolden) {
-			const result = await _fs.updateGolden(name);
-			if (result) process.stdout.write(chalk.gray('golden updated'));
-			else process.stdout.write(chalk.gray('golden update failed'));
-		} else {
-			process.stdout.write(chalk.gray('golden already up to date'));
-		}
-
 	}
 
 };
