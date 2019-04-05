@@ -1,6 +1,5 @@
 const chalk = require('chalk');
 const expect = require('chai').expect;
-const fs = require('fs');
 const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const polyserve = require('polyserve');
@@ -79,29 +78,28 @@ const visualDiff = {
 
 	_compare: async function(name) {
 
-		const goldenExists = await _fs.hasGoldenFile(name);
-		expect(goldenExists, 'golden exists').equal(true);
-
 		const currentImage = await _fs.getCurrentImage(name);
 		const goldenImage = await _fs.getGoldenImage(name);
+		let pixelsDiff = 0;
 
-		expect(currentImage.width, 'image widths are the same').equal(goldenImage.width);
-		expect(currentImage.height, 'image heights are the same').equal(goldenImage.height);
-
-		const diff = new PNG({width: currentImage.width, height: currentImage.height});
-
-		const numDiffPixels = pixelmatch(
-			currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
-		);
-
-		if (numDiffPixels !== 0) {
-			const diffName = `${name}-diff`;
-			const diffPath = _fs.getCurrentPath(diffName);
-			diff.pack().pipe(fs.createWriteStream(diffPath));
-			_fs.putCurrentFile(diffName);
+		if (goldenImage && currentImage.width === goldenImage.width && currentImage.height === goldenImage.height) {
+			const diff = new PNG({width: currentImage.width, height: currentImage.height});
+			pixelsDiff = pixelmatch(
+				currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
+			);
+			if (pixelsDiff !== 0) await _fs.writeCurrentStream(`${name}-diff`, diff.pack());
 		}
 
-		expect(numDiffPixels, 'number of different pixels').equal(0);
+		await this._generateHtml(name, {
+			current: currentImage,
+			golden: goldenImage,
+			pixelsDiff: pixelsDiff
+		});
+
+		expect(goldenImage !== null, 'golden exists').equal(true);
+		expect(currentImage.width, 'image widths are the same').equal(goldenImage.width);
+		expect(currentImage.height, 'image heights are the same').equal(goldenImage.height);
+		expect(pixelsDiff, 'number of different pixels').equal(0);
 
 	},
 
@@ -124,6 +122,40 @@ const visualDiff = {
 
 	},
 
+	_generateHtml: async function(name, info) {
+		const currentUrl = _fs.getCurrentUrl(name);
+		const diffUrl = _fs.getCurrentUrl(`${name}-diff`);
+		let goldenUrl = _fs.getGoldenUrl(name);
+		goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`
+		const createArtifactHtml = (info) => {
+			return `<div>
+					<div class="label">${info.name} (${info.meta})</div>
+					<img src="${info.url}" alt="${info.name}" />
+				</div>`;
+		};
+		const html = `
+			<html>
+				<style>
+					html { font-size: 20px; }
+					body { font-family: sans-serif; background-color: #333; color: #fff; margin: 18px; }
+					h1 { font-size: 1.2rem; margin: 24px 0; }
+					.compare { display: flex; }
+					.compare > div:first-child { margin-right: 9px; }
+					.compare > div:last-child { margin-left: 9px; }
+					.label { display: flex; font-size: 0.8rem; margin-bottom: 6px; }
+				</style>
+				<body>
+					<h1>Visual Diff: ${name}</h1>
+					<div class="compare">
+						${createArtifactHtml({name: 'Current', meta: `w:${info.current.width} x h:${info.current.height}`, url: currentUrl})}
+						${info.golden ? createArtifactHtml({name: 'Golden', meta: `w:${info.golden.width} x h:${info.golden.height}`, url: goldenUrl}) : 'Missing Golden'}
+						${info.pixelsDiff > 0 ? createArtifactHtml({name: 'Difference', meta: `${info.pixelsDiff} pixels`, url: diffUrl}) : ''}
+					</div>
+				</body>
+			</html>`;
+		await _fs.writeCurrentFile(`${name}.html`, html);
+	},
+
 	_updateGolden: async function(name) {
 
 		const currentImage = await _fs.getCurrentImage(name);
@@ -136,10 +168,10 @@ const visualDiff = {
 			updateGolden = true;
 		} else {
 			const diff = new PNG({width: currentImage.width, height: currentImage.height});
-			const numDiffPixels = pixelmatch(
+			const pixelsDiff = pixelmatch(
 				currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
 			);
-			if (numDiffPixels !== 0) updateGolden = true;
+			if (pixelsDiff !== 0) updateGolden = true;
 		}
 
 		process.stdout.write('      ');

@@ -50,11 +50,13 @@ class FileHelper {
 	}
 
 	getCurrentPath(name) {
-		return `${this.currentDir}/${this.formatName(name)}${name.endsWith('.png') ? '' : '.png'}`;
+		const ext = (name.endsWith('.png') || name.endsWith('.html')) ? '' : '.png';
+		return `${this.currentDir}/${this.formatName(name)}${ext}`;
 	}
 
 	getGoldenPath(name) {
-		return `${this.goldenDir}/${this.formatName(name)}${name.endsWith('.png') ? '' : '.png'}`;
+		const ext = (name.endsWith('.png') || name.endsWith('.html')) ? '' : '.png';
+		return `${this.goldenDir}/${this.formatName(name)}${ext}`;
 	}
 
 	getCurrentTarget() {
@@ -112,6 +114,41 @@ class FileHelper {
 		fs.copyFileSync(this.getCurrentPath(name), this.getGoldenPath(name));
 		await this.putGoldenFile(name);
 		return true;
+	}
+
+	getCurrentUrl(name) {
+		const ext = (name.endsWith('.png') || name.endsWith('.html')) ? '' : '.png';
+		name = `${this.formatName(name)}${ext}`;
+		if (!this.isCI) return name;
+		return this.s3.getCurrentObjectUrl(name);
+	}
+
+	getGoldenUrl(name) {
+		const ext = (name.endsWith('.png') || name.endsWith('.html')) ? '' : '.png';
+		name = `${this.formatName(name)}${ext}`;
+		if (!this.isCI) return name;
+		return this.s3.getGoldenObjectUrl(name);
+	}
+
+	async writeCurrentFile(name, content) {
+		if (!name || name.length === 0 || !content || content.length === 0) return;
+		const filePath = this.getCurrentPath(name);
+		fs.writeFileSync(filePath, content);
+		if (this.isCI) await this.s3.uploadCurrentFile(filePath);
+	}
+
+	async writeCurrentStream(name, stream) {
+		const filePath = this.getCurrentPath(name);
+		const writeStream = () => {
+			const promise = new Promise((resolve, reject) => {
+				stream.pipe(fs.createWriteStream(filePath)).on('finish', () => {
+					resolve();
+				});
+			});
+			return promise;
+		};
+		await writeStream();
+		if (this.isCI) await this.s3.uploadCurrentFile(filePath);
 	}
 
 }

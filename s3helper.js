@@ -23,6 +23,18 @@ class S3Helper {
 		//if (isCI) this.goldenConfig = Object.assign({}, _s3Config, { target: `${_s3Config.target}/${name}/golden.macos`});
 	}
 
+	getCurrentObjectUrl(name) {
+		return this.getObjectUrl(name, this.currentConfig);
+	}
+
+	getGoldenObjectUrl(name) {
+		return this.getObjectUrl(name, this.goldenConfig);
+	}
+
+	getObjectUrl(name, config) {
+		return `https://s3.${config.region}.amazonaws.com/${config.target}/${name}`;
+	}
+
 	deleteCurrentFile(filePath) {
 		return this.deleteFile(filePath, this.currentConfig);
 	}
@@ -182,7 +194,7 @@ class S3Helper {
 				region: config.region
 			});
 
-			const params = {Bucket: config.target, Key: '', Body: ''};
+			const params = {Bucket: config.target, Key: '', Body: '', ACL: 'public-read'};
 			const fileStream = fs.createReadStream(filePath);
 
 			fileStream.on('error', function(err) {
