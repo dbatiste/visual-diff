@@ -80,7 +80,7 @@ const visualDiff = {
 
 		const currentImage = await _fs.getCurrentImage(name);
 		const goldenImage = await _fs.getGoldenImage(name);
-		let pixelsDiff = 0;
+		let pixelsDiff;
 
 		if (goldenImage && currentImage.width === goldenImage.width && currentImage.height === goldenImage.height) {
 			const diff = new PNG({width: currentImage.width, height: currentImage.height});
@@ -123,16 +123,42 @@ const visualDiff = {
 	},
 
 	_generateHtml: async function(name, info) {
-		const currentUrl = _fs.getCurrentUrl(name);
-		const diffUrl = _fs.getCurrentUrl(`${name}-diff`);
+
 		let goldenUrl = _fs.getGoldenUrl(name);
 		goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`;
-		const createArtifactHtml = (info) => {
-			return `<div>
-					<div class="label">${info.name} (${info.meta})</div>
-					<img src="${info.url}" alt="${info.name}" />
+
+		const createArtifactHtml = (name, image, url) => {
+			if (image) {
+				return `<div>
+					<div class="label">${name} (w:${image.width} x h:${image.height})</div>
+					<img src="${url}" alt="${name}" />
 				</div>`;
+			} else {
+				return `<div>
+					<div class="label">${name}</div>
+					<div class="label" style="width: ${info.current.width}px;">No image.</div>
+				</div>`;
+			}
 		};
+		const createDiffHtml = (name, pixelsDiff, url) => {
+			if (pixelsDiff === 0) {
+				return `<div>
+					<div class="label">${name} (0 pixels)</div>
+					<div class="label" style="width: ${info.current.width}px;">Images match.</div>
+				</div>`;
+			} else if (pixelsDiff > 0) {
+				return `<div>
+					<div class="label">${name} (${pixelsDiff} pixels)</div>
+					<img src="${url}" alt="${name}" />
+				</div>`;
+			} else {
+				return `<div>
+					<div class="label">${name}</div>
+					<div class="label" style="width: ${info.current.width}px;">No image.</div>
+				</div>`;
+			}
+		};
+
 		const html = `
 			<html>
 				<head>
@@ -142,17 +168,18 @@ const visualDiff = {
 						body { font-family: sans-serif; background-color: #333; color: #fff; margin: 18px; }
 						h1 { font-size: 1.2rem; font-weight: 400; margin: 24px 0; }
 						.compare { display: flex; }
-						.compare > div:first-child { margin-right: 9px; }
-						.compare > div:last-child { margin-left: 9px; }
+						.compare > div { margin: 0 9px; }
+						.compare > div:first-child { margin: 0 9px 0 0; }
+						.compare > div:last-child { margin: 0 0 0 9px; }
 						.label { display: flex; font-size: 0.8rem; margin-bottom: 6px; }
 					</style>
 				</head>
 				<body>
 					<h1>${name}</h1>
 					<div class="compare">
-						${createArtifactHtml({name: 'Current', meta: `w:${info.current.width} x h:${info.current.height}`, url: currentUrl})}
-						${info.golden ? createArtifactHtml({name: 'Golden', meta: `w:${info.golden.width} x h:${info.golden.height}`, url: goldenUrl}) : 'Missing Golden'}
-						${info.pixelsDiff > 0 ? createArtifactHtml({name: 'Difference', meta: `${info.pixelsDiff} pixels`, url: diffUrl}) : ''}
+						${createArtifactHtml('Current', info.current, _fs.getCurrentUrl(name))}
+						${createArtifactHtml('Golden', info.golden, goldenUrl)}
+						${createDiffHtml('Difference', info.pixelsDiff, _fs.getCurrentUrl(`${name}-diff`))}
 					</div>
 				</body>
 			</html>`;
