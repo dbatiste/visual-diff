@@ -135,17 +135,20 @@ const visualDiff = {
 		};
 		const html = `
 			<html>
-				<style>
-					html { font-size: 20px; }
-					body { font-family: sans-serif; background-color: #333; color: #fff; margin: 18px; }
-					h1 { font-size: 1.2rem; font-weight: 400; margin: 24px 0; }
-					.compare { display: flex; }
-					.compare > div:first-child { margin-right: 9px; }
-					.compare > div:last-child { margin-left: 9px; }
-					.label { display: flex; font-size: 0.8rem; margin-bottom: 6px; }
-				</style>
+				<head>
+					<title>visual-diff: ${name}</title>
+					<style>
+						html { font-size: 20px; }
+						body { font-family: sans-serif; background-color: #333; color: #fff; margin: 18px; }
+						h1 { font-size: 1.2rem; font-weight: 400; margin: 24px 0; }
+						.compare { display: flex; }
+						.compare > div:first-child { margin-right: 9px; }
+						.compare > div:last-child { margin-left: 9px; }
+						.label { display: flex; font-size: 0.8rem; margin-bottom: 6px; }
+					</style>
+				</head>
 				<body>
-					<h1>Visual Diff: ${name}</h1>
+					<h1>${name}</h1>
 					<div class="compare">
 						${createArtifactHtml({name: 'Current', meta: `w:${info.current.width} x h:${info.current.height}`, url: currentUrl})}
 						${info.golden ? createArtifactHtml({name: 'Golden', meta: `w:${info.golden.width} x h:${info.golden.height}`, url: goldenUrl}) : 'Missing Golden'}
