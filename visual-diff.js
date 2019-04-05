@@ -46,6 +46,7 @@ const visualDiff = {
 			}
 			await server.close();
 			process.stdout.write('Stopped server.\n');
+			if (!this._isGoldenUpdate && this._isCI) process.stdout.write(`\nResults: ${_fs.getCurrentBaseUrl()}\n`);
 		});
 
 	},

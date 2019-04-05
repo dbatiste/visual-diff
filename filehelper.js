@@ -116,6 +116,11 @@ class FileHelper {
 		return true;
 	}
 
+	getCurrentBaseUrl() {
+		if (!this.isCI) return null;
+		return this.s3.getCurrentObjectUrl('');
+	}
+
 	getCurrentUrl(name) {
 		const ext = (name.endsWith('.png') || name.endsWith('.html')) ? '' : '.png';
 		name = `${this.formatName(name)}${ext}`;
