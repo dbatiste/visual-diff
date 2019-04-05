@@ -164,8 +164,8 @@ const visualDiff = {
 			const url = process.env['TRAVIS_BUILD_WEB_URL'];
 			const build = process.env['TRAVIS_BUILD_NUMBER'];
 			return `<div class="meta">
-				<div>${branch} (${sha})</div>
 				<div><a href="${url}">Build #${build}</a></div>
+				<div>${branch} (${sha})</div>
 				<div>${message}</div>
 			</div>`;
 		}
