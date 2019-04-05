@@ -138,7 +138,7 @@ const visualDiff = {
 				<style>
 					html { font-size: 20px; }
 					body { font-family: sans-serif; background-color: #333; color: #fff; margin: 18px; }
-					h1 { font-size: 1.2rem; margin: 24px 0; }
+					h1 { font-size: 1.2rem; font-weight: 400; margin: 24px 0; }
 					.compare { display: flex; }
 					.compare > div:first-child { margin-right: 9px; }
 					.compare > div:last-child { margin-left: 9px; }
