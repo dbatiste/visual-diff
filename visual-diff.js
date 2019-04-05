@@ -169,7 +169,7 @@ const visualDiff = {
 				<div>${branch} (${sha})</div>
 				<div>${message}</div>
 			</div>`;
-		}
+		};
 
 		const createArtifactHtml = (name, image, url) => {
 			if (image) {
