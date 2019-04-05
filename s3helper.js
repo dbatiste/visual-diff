@@ -187,6 +187,12 @@ class S3Helper {
 	uploadFile(filePath, config) {
 		const promise = new Promise((resolve, reject) => {
 
+			const getContentType = (filePath) => {
+				if (filePath.endsWith('.html')) return 'text/html';
+				if (filePath.endsWith('.png')) return 'image/png';
+				return;
+			};
+
 			const s3 = new AWS.S3({
 				apiVersion: 'latest',
 				accessKeyId: config.creds.accessKeyId,
@@ -194,7 +200,15 @@ class S3Helper {
 				region: config.region
 			});
 
-			const params = {Bucket: config.target, Key: '', Body: '', ACL: 'public-read'};
+			const params = {
+				ACL: 'public-read',
+				Body: '',
+				Bucket: config.target,
+				ContentDisposition: 'inline',
+				ContentType: getContentType(filePath),
+				Key: ''
+			};
+
 			const fileStream = fs.createReadStream(filePath);
 
 			fileStream.on('error', function(err) {
