@@ -140,7 +140,7 @@ class FileHelper {
 	async writeCurrentStream(name, stream) {
 		const filePath = this.getCurrentPath(name);
 		const writeStream = () => {
-			const promise = new Promise((resolve, reject) => {
+			const promise = new Promise((resolve) => {
 				stream.pipe(fs.createWriteStream(filePath)).on('finish', () => {
 					resolve();
 				});

@@ -126,7 +126,7 @@ const visualDiff = {
 		const currentUrl = _fs.getCurrentUrl(name);
 		const diffUrl = _fs.getCurrentUrl(`${name}-diff`);
 		let goldenUrl = _fs.getGoldenUrl(name);
-		goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`
+		goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`;
 		const createArtifactHtml = (info) => {
 			return `<div>
 					<div class="label">${info.name} (${info.meta})</div>
