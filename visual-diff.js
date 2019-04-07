@@ -5,82 +5,86 @@ const PNG = require('pngjs').PNG;
 const polyserve = require('polyserve');
 const FileHelper = require('./filehelper.js');
 
-let _fs;
+const _isGoldenUpdate = process.argv.includes('--golden') ? process.argv.includes('--golden') : false;
+const _isCI = process.env['CI'] ? true : false;
+//const _isCI = true;
+const _serverOptions = {npm: true, moduleResolution: 'node'};
 
-const visualDiff = {
+let _server;
+let _serverInfo;
 
-	initialize: async function(options) {
+before(async() => {
+	_server = await polyserve.startServer(_serverOptions);
+	const url = polyserve.getServerUrls(_serverOptions, _server).componentUrl;
 
-		this._isGoldenUpdate = process.argv.includes('--golden');
-		this._isCI = process.env['CI'];
-		//this._isCI = true;
+	const baseUrl = `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/, '')}`;
+	_serverInfo = Object.assign({baseUrl: baseUrl}, url);
+	process.stdout.write(`Started server with base: ${_serverInfo.baseUrl}\n\n`);
+});
 
-		_fs = new FileHelper(
-			options.name,
-			`${(options && options.dir) ? options.dir : process.cwd()}/screenshots`,
-			options.upload,
-			this._isCI
-		);
+after(async() => {
+	if (_server) {
+		await _server.close();
+		process.stdout.write('Stopped server.\n');
+	}
+});
 
-		const serveOptions = {
-			port: (options && options.port) ? options.port : 8081,
-			npm: true,
-			moduleResolution: 'node'
-		};
+class VisualDiff {
 
-		const server = await polyserve.startServer(serveOptions);
-		const url = polyserve.getServerUrls(serveOptions, server).componentUrl;
+	constructor(name, dir, options) {
 
-		const baseUrl = `${url.protocol}://${url.hostname}:${url.port}/${url.pathname.replace(/\/$/, '')}`;
-		this._serverInfo = Object.assign({baseUrl: baseUrl}, url);
+		this._fs = new FileHelper(name, `${dir ? dir : process.cwd()}/screenshots`, options ? options.upload : null, _isCI);
 
-		this.baseUrl = this._serverInfo.baseUrl;
-
-		process.stdout.write(`Current target: ${_fs.getCurrentTarget()}\n`);
-		process.stdout.write(`Golden target: ${_fs.getGoldenTarget()}\n\n`);
-		process.stdout.write(`Started server with base: ${this._serverInfo.baseUrl}\n\n`);
-
-		after(async() => {
-			if (this._isGoldenUpdate) {
-				await this._deleteGoldenOrphans();
+		before(() => {
+			let currentTarget = this._fs.getCurrentTarget();
+			let goldenTarget = this._fs.getGoldenTarget();
+			if (!_isCI) {
+				currentTarget = currentTarget.replace(process.cwd(), '');
+				goldenTarget = goldenTarget.replace(process.cwd(), '');
 			}
-			await server.close();
-			process.stdout.write('Stopped server.\n');
-			if (!this._isGoldenUpdate && this._isCI) process.stdout.write(`\nResults: ${_fs.getCurrentBaseUrl()}\n`);
+			process.stdout.write(`\n${chalk.green('    Current:')} ${currentTarget}`);
+			process.stdout.write(`\n${chalk.hex('#DCDCAA')('    Golden:')} ${goldenTarget}\n\n`);
 		});
 
-	},
+		after(async() => {
+			if (_isGoldenUpdate) {
+				await this._deleteGoldenOrphans();
+			}
+			if (!_isGoldenUpdate && _isCI) process.stdout.write(`\nResults: ${this._fs.getCurrentBaseUrl()}\n`);
+		});
 
-	puppeteer: {
+	}
 
-		getRect: async function(page, selector, margin) {
-			margin = (margin !== undefined) ? margin : 10;
-			return page.$eval(selector, (elem, margin) => {
-				return {
-					x: elem.offsetLeft - margin,
-					y: elem.offsetTop - margin,
-					width: elem.offsetWidth + (margin * 2),
-					height: elem.offsetHeight + (margin * 2)
-				};
-			}, margin);
-		},
+	getBaseUrl() {
+		return _serverInfo.baseUrl;
+	}
 
-		screenshotAndCompare: async function(page, name, options) {
-			const info = Object.assign({path: _fs.getCurrentPath(name)}, options);
+	async getRect(page, selector, margin) {
+		margin = (margin !== undefined) ? margin : 10;
+		return page.$eval(selector, (elem, margin) => {
+			return {
+				x: elem.offsetLeft - margin,
+				y: elem.offsetTop - margin,
+				width: elem.offsetWidth + (margin * 2),
+				height: elem.offsetHeight + (margin * 2)
+			};
+		}, margin);
+	}
 
-			await page.screenshot(info);
-			await _fs.putCurrentFile(name);
+	async screenshotAndCompare(page, name, options) {
+		const info = Object.assign({path: this._fs.getCurrentPath(name)}, options);
 
-			if (visualDiff._isGoldenUpdate) return visualDiff._updateGolden(name);
-			else await visualDiff._compare(name);
-		}
+		await page.screenshot(info);
+		await this._fs.putCurrentFile(name);
 
-	},
+		if (_isGoldenUpdate) return this._updateGolden(name);
+		else await this._compare(name);
+	}
 
-	_compare: async function(name) {
+	async _compare(name) {
 
-		const currentImage = await _fs.getCurrentImage(name);
-		const goldenImage = await _fs.getGoldenImage(name);
+		const currentImage = await this._fs.getCurrentImage(name);
+		const goldenImage = await this._fs.getGoldenImage(name);
 		let pixelsDiff;
 
 		if (goldenImage && currentImage.width === goldenImage.width && currentImage.height === goldenImage.height) {
@@ -88,7 +92,7 @@ const visualDiff = {
 			pixelsDiff = pixelmatch(
 				currentImage.data, goldenImage.data, diff.data, currentImage.width, currentImage.height, {threshold: 0.1}
 			);
-			if (pixelsDiff !== 0) await _fs.writeCurrentStream(`${name}-diff`, diff.pack());
+			if (pixelsDiff !== 0) await this._fs.writeCurrentStream(`${name}-diff`, diff.pack());
 		}
 
 		await this._generateHtml(name, {
@@ -102,31 +106,31 @@ const visualDiff = {
 		expect(currentImage.height, 'image heights are the same').equal(goldenImage.height);
 		expect(pixelsDiff, 'number of different pixels').equal(0);
 
-	},
+	}
 
-	_deleteGoldenOrphans: async function() {
+	async _deleteGoldenOrphans() {
 
-		process.stdout.write('Removed orphaned goldens.\n');
+		process.stdout.write('\n      Removed orphaned goldens.\n');
 
-		const currentFiles = _fs.getCurrentFiles();
-		const goldenFiles = await _fs.getGoldenFiles();
+		const currentFiles = this._fs.getCurrentFiles();
+		const goldenFiles = await this._fs.getGoldenFiles();
 
 		for (let i = 0; i < goldenFiles.length; i++) {
 			const fileName = goldenFiles[i];
 			if (!currentFiles.includes(fileName)) {
-				await _fs.removeGoldenFile(fileName);
-				process.stdout.write(`${chalk.gray(fileName)}\n`);
+				await this._fs.removeGoldenFile(fileName);
+				process.stdout.write(`      ${chalk.gray(fileName)}\n`);
 			}
 		}
 
 		process.stdout.write('\n');
 
-	},
+	}
 
-	_updateGolden: async function(name) {
+	async _updateGolden(name) {
 
-		const currentImage = await _fs.getCurrentImage(name);
-		const goldenImage = await _fs.getGoldenImage(name);
+		const currentImage = await this._fs.getCurrentImage(name);
+		const goldenImage = await this._fs.getGoldenImage(name);
 
 		let updateGolden = false;
 		if (!goldenImage) {
@@ -143,22 +147,22 @@ const visualDiff = {
 
 		process.stdout.write('      ');
 		if (updateGolden) {
-			const result = await _fs.updateGolden(name);
+			const result = await this._fs.updateGolden(name);
 			if (result) process.stdout.write(chalk.gray('golden updated'));
 			else process.stdout.write(chalk.gray('golden update failed'));
 		} else {
 			process.stdout.write(chalk.gray('golden already up to date'));
 		}
 
-	},
+	}
 
-	_generateHtml: async function(name, info) {
+	async _generateHtml(name, info) {
 
-		let goldenUrl = _fs.getGoldenUrl(name);
+		let goldenUrl = this._fs.getGoldenUrl(name);
 		goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`;
 
 		const createMetaHtml = () => {
-			if (!this._isCI) return '';
+			if (!_isCI) return '';
 			const branch = process.env['TRAVIS_BRANCH'];
 			const sha = process.env['TRAVIS_COMMIT'];
 			const message = process.env['TRAVIS_COMMIT_MESSAGE'];
@@ -224,16 +228,16 @@ const visualDiff = {
 				<body>
 					<h1>${name}</h1>
 					<div class="compare">
-						${createArtifactHtml('Current', info.current, _fs.getCurrentUrl(name))}
+						${createArtifactHtml('Current', info.current, this._fs.getCurrentUrl(name))}
 						${createArtifactHtml('Golden', info.golden, goldenUrl)}
-						${createDiffHtml('Difference', info.pixelsDiff, _fs.getCurrentUrl(`${name}-diff`))}
+						${createDiffHtml('Difference', info.pixelsDiff, this._fs.getCurrentUrl(`${name}-diff`))}
 					</div>
 					${createMetaHtml()}
 				</body>
 			</html>`;
-		await _fs.writeCurrentFile(`${name}.html`, html);
+		await this._fs.writeCurrentFile(`${name}.html`, html);
 	}
 
-};
+}
 
-module.exports = visualDiff;
+module.exports = VisualDiff;
