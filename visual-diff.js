@@ -33,11 +33,14 @@ class VisualDiff {
 
 	constructor(name, dir, options) {
 
+		this._results = [];
 		this._fs = new FileHelper(name, `${dir ? dir : process.cwd()}/screenshots`, options ? options.upload : null, _isCI);
 
+		let currentTarget, goldenTarget;
+
 		before(() => {
-			let currentTarget = this._fs.getCurrentTarget();
-			let goldenTarget = this._fs.getGoldenTarget();
+			currentTarget = this._fs.getCurrentTarget();
+			goldenTarget = this._fs.getGoldenTarget();
 			if (!_isCI) {
 				currentTarget = currentTarget.replace(process.cwd(), '');
 				goldenTarget = goldenTarget.replace(process.cwd(), '');
@@ -49,8 +52,14 @@ class VisualDiff {
 		after(async() => {
 			if (_isGoldenUpdate) {
 				await this._deleteGoldenOrphans();
+			} else {
+				await this._generateHtml('report.html', this._results);
+				if (_isCI) {
+					process.stdout.write(`\nResults: ${this._fs.getCurrentBaseUrl()}report.html\n`);
+				} else {
+					process.stdout.write(`\nResults: ${_serverInfo.baseUrl}${currentTarget}/report.html\n`);
+				}
 			}
-			if (!_isGoldenUpdate && _isCI) process.stdout.write(`\nResults: ${this._fs.getCurrentBaseUrl()}\n`);
 		});
 
 	}
@@ -95,9 +104,10 @@ class VisualDiff {
 			if (pixelsDiff !== 0) await this._fs.writeCurrentStream(`${name}-diff`, diff.pack());
 		}
 
-		await this._generateHtml(name, {
-			current: currentImage,
-			golden: goldenImage,
+		this._results.push({
+			name: name,
+			current: { height: currentImage.height, width: currentImage.width },
+			golden: goldenImage ? { height: goldenImage.height, width: goldenImage.width } : null,
 			pixelsDiff: pixelsDiff
 		});
 
@@ -156,86 +166,79 @@ class VisualDiff {
 
 	}
 
-	async _generateHtml(name, info) {
-
-		let goldenUrl = this._fs.getGoldenUrl(name);
-		goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`;
-
-		const createMetaHtml = () => {
-			if (!_isCI) return '';
-			const branch = process.env['TRAVIS_BRANCH'];
-			const sha = process.env['TRAVIS_COMMIT'];
-			const message = process.env['TRAVIS_COMMIT_MESSAGE'];
-			const url = process.env['TRAVIS_BUILD_WEB_URL'];
-			const build = process.env['TRAVIS_BUILD_NUMBER'];
-			return `<div class="meta">
-				<div><a href="${url}">Build #${build}</a></div>
-				<div>${branch} (${sha})</div>
-				<div>${message}</div>
+	async _generateHtml(fileName, results) {
+		const createArtifactHtml = (name, meta, content) => {
+			return `<div>
+				<div class="label">${name} ${meta ? '(' : ''}${meta}${meta ? ')' : ''}</div>
+				${content}
 			</div>`;
 		};
-
-		const createArtifactHtml = (name, image, url) => {
-			if (image) {
-				return `<div>
-					<div class="label">${name} (w:${image.width} x h:${image.height})</div>
-					<img src="${url}" alt="${name}" />
-				</div>`;
-			} else {
-				return `<div>
-					<div class="label">${name}</div>
-					<div class="label" style="width: ${info.current.width}px;">No image.</div>
-				</div>`;
-			}
+		const createImageHtml = (name, image, url) => {
+			return createArtifactHtml(
+				name,
+				`w:${image.width} x h:${image.height}`,
+				`<img src="${url}" alt="${name}" />`
+			);
 		};
-		const createDiffHtml = (name, pixelsDiff, url) => {
+		const createNoImageHtml = (name, image, reason) => {
+			return createArtifactHtml(name, '', `<div class="label" style="width: ${image.width}px;">${reason}</div>`);
+		};
+		const createCurrentHtml = (image, url) => {
+			return createImageHtml('Current', image, url);
+		};
+		const createGoldenHtml = (image, url, defaultImage) => {
+			if (image) return createImageHtml('Golden', image, url);
+			else return createNoImageHtml('Golden', defaultImage, 'No golden.');
+		};
+		const createDiffHtml = (pixelsDiff, url, defaultImage) => {
 			if (pixelsDiff === 0) {
-				return `<div>
-					<div class="label">${name} (0 pixels)</div>
-					<div class="label" style="width: ${info.current.width}px;">Images match.</div>
-				</div>`;
+				return createNoImageHtml('Difference (0 pixels)', defaultImage, 'Images match.');
 			} else if (pixelsDiff > 0) {
-				return `<div>
-					<div class="label">${name} (${pixelsDiff} pixels)</div>
-					<img src="${url}" alt="${name}" />
-				</div>`;
+				return createArtifactHtml('Difference', `${pixelsDiff} pixels`, `<img src="${url}" alt="Difference" />`);
 			} else {
-				return `<div>
-					<div class="label">${name}</div>
-					<div class="label" style="width: ${info.current.width}px;">No image.</div>
-				</div>`;
+				return createNoImageHtml('Difference', defaultImage, 'No image.');
 			}
 		};
+		const diffHtml = results.map((result) => {
+
+			let goldenUrl = this._fs.getGoldenUrl(result.name);
+			goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`;
+
+			return `
+				<h2>${result.name}</h2>
+				<div class="compare">
+					${createCurrentHtml(result.current, this._fs.getCurrentUrl(result.name))}
+					${createGoldenHtml(result.golden, goldenUrl, result.current)}
+					${createDiffHtml(result.pixelsDiff, this._fs.getCurrentUrl(`${result.name}-diff`), result.current)}
+				</div>`
+		}).join('\n');
 
 		const html = `
 			<html>
 				<head>
-					<title>visual-diff: ${name}</title>
+					<title>visual-diff</title>
 					<style>
 						html { font-size: 20px; }
 						body { font-family: sans-serif; background-color: #333; color: #fff; margin: 18px; }
 						h1 { font-size: 1.2rem; font-weight: 400; margin: 24px 0; }
+						h2 { font-size: 0.9rem; font-weight: 400; margin: 30px 0 18px 0; }
 						a { color: #006fbf; }
 						.compare { display: flex; }
-						.compare > div { margin: 0 9px; }
-						.compare > div:first-child { margin: 0 9px 0 0; }
-						.compare > div:last-child { margin: 0 0 0 9px; }
-						.label { display: flex; font-size: 0.8rem; margin-bottom: 6px; }
-						.meta { font-size: 0.6rem; margin-top: 24px; }
+						.compare > div { margin: 0 18px; }
+						.compare > div:first-child { margin: 0 18px 0 0; }
+						.compare > div:last-child { margin: 0 0 0 18px; }
+						.label { display: flex; font-size: 0.7rem; margin-bottom: 6px; }
+						.meta { font-size: 0.7rem; margin-top: 24px; }
 						.meta > div { margin-bottom: 3px; }
 					</style>
 				</head>
 				<body>
-					<h1>${name}</h1>
-					<div class="compare">
-						${createArtifactHtml('Current', info.current, this._fs.getCurrentUrl(name))}
-						${createArtifactHtml('Golden', info.golden, goldenUrl)}
-						${createDiffHtml('Difference', info.pixelsDiff, this._fs.getCurrentUrl(`${name}-diff`))}
-					</div>
-					${createMetaHtml()}
+					<h1>Visual-Diff</h1>${diffHtml}
 				</body>
-			</html>`;
-		await this._fs.writeCurrentFile(`${name}.html`, html);
+			</html>
+		`;
+
+		await this._fs.writeCurrentFile(fileName, html);
 	}
 
 }
