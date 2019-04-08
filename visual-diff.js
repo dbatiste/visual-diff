@@ -177,12 +177,12 @@ class VisualDiff {
 		const createImageHtml = (name, image, url) => {
 			return createArtifactHtml(
 				name,
-				`w:${image.width/this._dpr} x h:${image.height/this._dpr}`,
-				`<img src="${url}" style="width: ${image.width/this._dpr}px; height: ${image.height/this._dpr}px;" alt="${name}" />`
+				`w:${image.width / this._dpr} x h:${image.height / this._dpr}`,
+				`<img src="${url}" style="width: ${image.width / this._dpr}px; height: ${image.height / this._dpr}px;" alt="${name}" />`
 			);
 		};
 		const createNoImageHtml = (name, image, reason) => {
-			return createArtifactHtml(name, '', `<div class="label" style="width: ${image.width/this._dpr}px;">${reason}</div>`);
+			return createArtifactHtml(name, '', `<div class="label" style="width: ${image.width / this._dpr}px;">${reason}</div>`);
 		};
 		const createCurrentHtml = (image, url) => {
 			return createImageHtml('Current', image, url);
@@ -195,7 +195,7 @@ class VisualDiff {
 			if (pixelsDiff === 0) {
 				return createNoImageHtml('Difference (0px)', defaultImage, 'Images match.');
 			} else if (pixelsDiff > 0) {
-				return createArtifactHtml('Difference', `${pixelsDiff/this._dpr}px`, `<img src="${url}" style="width: ${defaultImage.width/this._dpr}px; height: ${defaultImage.height/this._dpr}px;" alt="Difference" />`);
+				return createArtifactHtml('Difference', `${pixelsDiff / this._dpr}px`, `<img src="${url}" style="width: ${defaultImage.width / this._dpr}px; height: ${defaultImage.height / this._dpr}px;" alt="Difference" />`);
 			} else {
 				return createNoImageHtml('Difference', defaultImage, 'No image.');
 			}
@@ -225,7 +225,7 @@ class VisualDiff {
 					${createCurrentHtml(result.current, this._fs.getCurrentUrl(result.name))}
 					${createGoldenHtml(result.golden, goldenUrl, result.current)}
 					${createDiffHtml(result.pixelsDiff, this._fs.getCurrentUrl(`${result.name}-diff`), result.current)}
-				</div>`
+				</div>`;
 		}).join('\n');
 
 		const html = `
