@@ -200,6 +200,20 @@ class VisualDiff {
 				return createNoImageHtml('Difference', defaultImage, 'No image.');
 			}
 		};
+		const createMetaHtml = () => {
+			if (!_isCI) return '';
+			const branch = process.env['TRAVIS_BRANCH'];
+			const sha = process.env['TRAVIS_COMMIT'];
+			const message = process.env['TRAVIS_COMMIT_MESSAGE'];
+			const url = process.env['TRAVIS_BUILD_WEB_URL'];
+			const build = process.env['TRAVIS_BUILD_NUMBER'];
+			return `
+				<div class="meta">
+					<div><a href="${url}">Build #${build}</a></div>
+					<div>${branch} (${sha})</div>
+					<div>${message}</div>
+				</div>`;
+		};
 		const diffHtml = results.map((result) => {
 
 			let goldenUrl = this._fs.getGoldenUrl(result.name);
@@ -235,6 +249,7 @@ class VisualDiff {
 				</head>
 				<body>
 					<h1>Visual-Diff</h1>${diffHtml}
+					${createMetaHtml()}
 				</body>
 			</html>
 		`;
