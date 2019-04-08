@@ -35,6 +35,7 @@ class VisualDiff {
 
 		this._results = [];
 		this._fs = new FileHelper(name, `${dir ? dir : process.cwd()}/screenshots`, options ? options.upload : null, _isCI);
+		this._dpr = options && options.dpr ? options.dpr : 2;
 
 		let currentTarget, goldenTarget;
 
@@ -176,12 +177,12 @@ class VisualDiff {
 		const createImageHtml = (name, image, url) => {
 			return createArtifactHtml(
 				name,
-				`w:${image.width} x h:${image.height}`,
-				`<img src="${url}" alt="${name}" />`
+				`w:${image.width/this._dpr} x h:${image.height/this._dpr}`,
+				`<img src="${url}" style="width: ${image.width/this._dpr}px; height: ${image.height/this._dpr}px;" alt="${name}" />`
 			);
 		};
 		const createNoImageHtml = (name, image, reason) => {
-			return createArtifactHtml(name, '', `<div class="label" style="width: ${image.width}px;">${reason}</div>`);
+			return createArtifactHtml(name, '', `<div class="label" style="width: ${image.width/this._dpr}px;">${reason}</div>`);
 		};
 		const createCurrentHtml = (image, url) => {
 			return createImageHtml('Current', image, url);
@@ -192,9 +193,9 @@ class VisualDiff {
 		};
 		const createDiffHtml = (pixelsDiff, url, defaultImage) => {
 			if (pixelsDiff === 0) {
-				return createNoImageHtml('Difference (0 pixels)', defaultImage, 'Images match.');
+				return createNoImageHtml('Difference (0px)', defaultImage, 'Images match.');
 			} else if (pixelsDiff > 0) {
-				return createArtifactHtml('Difference', `${pixelsDiff} pixels`, `<img src="${url}" alt="Difference" />`);
+				return createArtifactHtml('Difference', `${pixelsDiff/this._dpr}px`, `<img src="${url}" style="width: ${defaultImage.width/this._dpr}px; height: ${defaultImage.height/this._dpr}px;" alt="Difference" />`);
 			} else {
 				return createNoImageHtml('Difference', defaultImage, 'No image.');
 			}
