@@ -39,15 +39,25 @@ class VisualDiff {
 
 		let currentTarget, goldenTarget;
 
-		before(() => {
+		before(async() => {
 			currentTarget = this._fs.getCurrentTarget();
 			goldenTarget = this._fs.getGoldenTarget();
 			if (!_isCI) {
 				currentTarget = currentTarget.replace(process.cwd(), '');
 				goldenTarget = goldenTarget.replace(process.cwd(), '');
 			}
+
 			process.stdout.write(`\n${chalk.green('    Current:')} ${currentTarget}`);
 			process.stdout.write(`\n${chalk.hex('#DCDCAA')('    Golden:')} ${goldenTarget}\n\n`);
+
+			if (!_isGoldenUpdate) {
+				// fail fast if no goldens
+				const goldenFiles = await this._fs.getGoldenFiles();
+				if (goldenFiles.length ===0) {
+					process.stdout.write(`\n${chalk.hex('#DCDCAA')('No goldens!  Did you forget to generate them?')}\n${goldenTarget}\n\n`);
+					process.exit(1);
+				}
+			}
 		});
 
 		after(async() => {
