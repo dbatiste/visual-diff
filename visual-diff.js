@@ -53,7 +53,7 @@ class VisualDiff {
 			if (!_isGoldenUpdate) {
 				// fail fast if no goldens
 				const goldenFiles = await this._fs.getGoldenFiles();
-				if (goldenFiles.length ===0) {
+				if (goldenFiles.length === 0) {
 					process.stdout.write(`\n${chalk.hex('#DCDCAA')('No goldens!  Did you forget to generate them?')}\n${goldenTarget}\n\n`);
 					process.exit(1);
 				}
