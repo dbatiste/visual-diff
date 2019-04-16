@@ -7,15 +7,20 @@ class FileHelper {
 	constructor(name, rootDir, s3Config, isCI) {
 		this.s3 = new S3Helper(name, s3Config, isCI);
 		this.isCI = isCI;
+
 		this.rootDir = rootDir;
-		this.currentDir = `${rootDir}/current/${name}`;
-		this.goldenDir = `${rootDir}/golden/${name}`;
+		this.currentSubDir = `current/${name}`;
+		this.goldenSubDir = `golden/${name}`;
+		this.currentDir = `${rootDir}/${this.currentSubDir}`;
+		this.goldenDir = `${rootDir}/${this.goldenSubDir}`;
 
 		if (!fs.existsSync(this.rootDir)) fs.mkdirSync(this.rootDir);
+
 		if (this.isCI) this.cleanDir(this.goldenDir);
-		if (!fs.existsSync(this.goldenDir)) fs.mkdirSync(this.goldenDir, { recursive: true });
+		this.makeDir(rootDir, this.goldenSubDir);
+
 		this.cleanDir(this.currentDir);
-		if (!fs.existsSync(this.currentDir)) fs.mkdirSync(this.currentDir, { recursive: true });
+		this.makeDir(rootDir, this.currentSubDir);
 	}
 
 	cleanDir(path, remove) {
@@ -91,6 +96,14 @@ class FileHelper {
 			await this.s3.getGoldenFile(goldenPath);
 		}
 		return fs.existsSync(goldenPath);
+	}
+
+	makeDir(rootDir, subDir) {
+		const dirs = subDir.split('/');
+		dirs.forEach((dir) => {
+			rootDir += `/${dir}`;
+			if (!fs.existsSync(rootDir)) fs.mkdirSync(rootDir);
+		});
 	}
 
 	async putCurrentFile(name) {
