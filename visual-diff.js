@@ -108,6 +108,7 @@ class VisualDiff {
 				elem = document.createElement('button');
 				elem.id = 'vd-focus';
 				elem.innerHTML = 'reset focus';
+				elem.style.opacity = 0;
 				document.body.insertBefore(elem, document.body.firstChild);
 			}
 		});
@@ -240,7 +241,8 @@ class VisualDiff {
 		const diffHtml = results.map((result) => {
 
 			let goldenUrl = this._fs.getGoldenUrl(result.name);
-			goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../golden/${goldenUrl}`;
+			// the follow assumes golden directory is exactly ../../ relative to report
+			goldenUrl = goldenUrl.startsWith('https://s3.') ? goldenUrl : `../../${goldenUrl}`;
 
 			return `
 				<h2>${result.name}</h2>

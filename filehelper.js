@@ -8,6 +8,7 @@ class FileHelper {
 		this.s3 = new S3Helper(name, s3Config, isCI);
 		this.isCI = isCI;
 
+		this.name = name;
 		this.rootDir = rootDir;
 		this.currentSubDir = `current/${name}`;
 		this.goldenSubDir = `golden/${name}`;
@@ -144,8 +145,11 @@ class FileHelper {
 	getGoldenUrl(name) {
 		const ext = (name.endsWith('.png') || name.endsWith('.html')) ? '' : '.png';
 		name = `${this.formatName(name)}${ext}`;
-		if (!this.isCI) return name;
-		return this.s3.getGoldenObjectUrl(name);
+		if (!this.isCI) {
+			return `${this.goldenSubDir}/${name}`;
+		} else {
+			return this.s3.getGoldenObjectUrl(name);
+		}
 	}
 
 	async writeCurrentFile(name, content) {
