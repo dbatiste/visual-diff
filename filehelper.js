@@ -8,14 +8,14 @@ class FileHelper {
 		this.s3 = new S3Helper(name, s3Config, isCI);
 		this.isCI = isCI;
 		this.rootDir = rootDir;
-		this.currentDir = `${rootDir}/current`;
-		this.goldenDir = `${rootDir}/golden`;
+		this.currentDir = `${rootDir}/current/${name}`;
+		this.goldenDir = `${rootDir}/golden/${name}`;
 
 		if (!fs.existsSync(this.rootDir)) fs.mkdirSync(this.rootDir);
 		if (this.isCI) this.cleanDir(this.goldenDir);
-		if (!fs.existsSync(this.goldenDir)) fs.mkdirSync(this.goldenDir);
+		if (!fs.existsSync(this.goldenDir)) fs.mkdirSync(this.goldenDir, { recursive: true });
 		this.cleanDir(this.currentDir);
-		if (!fs.existsSync(this.currentDir)) fs.mkdirSync(this.currentDir);
+		if (!fs.existsSync(this.currentDir)) fs.mkdirSync(this.currentDir, { recursive: true });
 	}
 
 	cleanDir(path, remove) {
