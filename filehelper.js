@@ -145,11 +145,8 @@ class FileHelper {
 	getGoldenUrl(name) {
 		const ext = (name.endsWith('.png') || name.endsWith('.html')) ? '' : '.png';
 		name = `${this.formatName(name)}${ext}`;
-		if (!this.isCI) {
-			return `${this.goldenSubDir}/${name}`;
-		} else {
-			return this.s3.getGoldenObjectUrl(name);
-		}
+		if (!this.isCI) return `${this.goldenSubDir}/${name}`;
+		return this.s3.getGoldenObjectUrl(name);
 	}
 
 	async writeCurrentFile(name, content) {
