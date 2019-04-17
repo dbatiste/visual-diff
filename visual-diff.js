@@ -91,16 +91,6 @@ class VisualDiff {
 		}, margin);
 	}
 
-	async screenshotAndCompare(page, name, options) {
-		const info = Object.assign({path: this._fs.getCurrentPath(name)}, options);
-
-		await page.screenshot(info);
-		await this._fs.putCurrentFile(name);
-
-		if (_isGoldenUpdate) return this._updateGolden(name);
-		else await this._compare(name);
-	}
-
 	async resetFocus(page) {
 		await page.evaluate(() => {
 			let elem = document.querySelector('#vd-focus');
@@ -113,6 +103,16 @@ class VisualDiff {
 			}
 		});
 		await page.click('#vd-focus');
+	}
+
+	async screenshotAndCompare(page, name, options) {
+		const info = Object.assign({path: this._fs.getCurrentPath(name)}, options);
+
+		await page.screenshot(info);
+		await this._fs.putCurrentFile(name);
+
+		if (_isGoldenUpdate) return this._updateGolden(name);
+		else await this._compare(name);
 	}
 
 	async _compare(name) {
